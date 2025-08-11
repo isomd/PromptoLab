@@ -1,34 +1,36 @@
 name: 多模块项目部署 [CI|CD]流
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - master
 
 jobs:
   build:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
-
       - name: Checkout Auto Label
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == *"<Auto>"* ]]; then
-            echo "Commit message contains <Auto>. Proceeding with the workflow."
+          pr_body="${{ github.event.pull_request.body }}"
+          if [[ "$pr_body" == *"<Auto>"* ]]; then
+            echo "PR description contains <Auto>. Proceeding with the workflow."
           else
-            echo "Commit message does not contain <Auto>. Skipping the workflow."
+            echo "PR description does not contain <Auto>. Skipping the workflow."
             exit 78 
           fi
 
       - name: Get Commit Info
         id: extract
         run: |
-          commit_message="${{ github.event.head_commit.message }}"
-          echo "Commit Message: $commit_message"
-          
+          # 使用PR description作为信息源
+          commit_message="${{ github.event.pull_request.body }}"
+          echo "PR Description: $commit_message"
           
           env=""
           module="cyber-nomads"
@@ -51,7 +53,6 @@ jobs:
           fi
           
           if [[ "$commit_message" =~ -de:\<([^>]+)\> ]]; then
-          
           docker_env="${BASH_REMATCH[1]}"
           fi
           
@@ -113,12 +114,10 @@ jobs:
       - name: Connect Server
         uses: appleboy/ssh-action@master
         with:
-          # 同上述
           host: ${{ env.HOST }}
           username: root
           password: ${{ env.PWD }}
           port: ${{ env.PORT }}
-          # ssh进入系统后执行什么样的操作。一般是关闭原有的服务在重启
           script: |
             docker pull ${{ secrets.DOCKER_REPO }}/${{ env.MODULE }}:${{ env.VERSION }}
             if [ "${{ env.RUN_PORT }}" != "" ]; then
