@@ -41,11 +41,5 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     open-in-view: false
-ai:
-  # 持久化配置
-  persistence:
-    data-dir: ${AI_PERSISTENCE_DATA_DIR:classpath:ai-config}
-    backup-dir: ${AI_PERSISTENCE_BACKUP_DIR:./data/ai-config/backups}
-    auto-backup: ${AI_PERSISTENCE_AUTO_BACKUP:true}
-    backup-retention-days: ${AI_PERSISTENCE_BACKUP_RETENTION_DAYS:30}
+
 
