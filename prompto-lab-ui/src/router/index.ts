@@ -18,6 +18,14 @@ const router = createRouter({
       }
     },
     {
+      path: '/prompt-builder',
+      name: 'prompt-builder',
+      component: () => import('../views/PromptBuilderView.vue'),
+      meta: {
+        title: 'AI构建器 - PromptoLab'
+      }
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('../views/SettingsView.vue'),
