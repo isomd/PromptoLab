@@ -2,6 +2,8 @@ server:
   port: 8080
 
 spring:
+  config:
+    import: classpath:you-cant-see-that.yml
   application:
     name: poet-agent
   datasource:
