@@ -119,8 +119,8 @@
               <div class="model-identity">
                 <div
                   class="model-avatar"
-                  :title="'点击复制图标'"
-                  @click="copyToClipboard(getModelIcon(model.provider || 'other'))"
+                  :title="'点击复制模型名: ' + model.modelName"
+                  @click="copyToClipboard(model.modelName)"
                 >
                   <img :src="getProviderIcon(model.provider || 'other')" alt="provider icon" class="provider-icon" />
                 </div>
