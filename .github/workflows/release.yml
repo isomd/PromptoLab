@@ -33,7 +33,7 @@ jobs:
           echo "PR Description: $commit_message"
           
           env=""
-          module="cyber-nomads"
+          module="PromptoLab"
           module_type=""
           version=""
           skip=""
@@ -96,7 +96,7 @@ jobs:
           
           mkdir docker
           cp ./Dockerfile ./docker
-          cp ./cyber-nomads-app/target/*.jar ./docker
+          cp ./target/*.jar ./docker
           cd docker
           docker build -t $DOCKER_REPO/$MODULE:$VERSION .
           docker login -u $DOCKER_REPO -p $DOCKER_PASSWORD
