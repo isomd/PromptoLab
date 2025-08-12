@@ -13,8 +13,8 @@ public class QaTreeDomain {
         return new QaTree(startNode);
     }
 
-    public QaTree appendNode(QaTree tree, String parentId, QaTreeNode node) {
-        tree.addNode(parentId, node);
+    public QaTree appendNode(QaTree tree, String parentId, QA qa) {
+        tree.addNode(parentId, new QaTreeNode(qa));
         return tree;
     }
 }
