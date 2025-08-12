@@ -84,6 +84,7 @@ jobs:
       - name: Build with Maven
         if: ${{ env.SKIP != 'image'}}
         run: |
+          cd prompto-lab-app
           mvn package -Dmaven.test.skip=true
 
       - name: Build and Push Docker Images
