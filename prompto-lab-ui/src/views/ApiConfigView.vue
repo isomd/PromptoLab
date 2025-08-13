@@ -41,7 +41,7 @@
               @click="switchTab(tab.key)"
             >
               <div class="tab-icon">
-                <span>{{ tab.icon }}</span>
+                <div v-html="tab.icon"></div>
               </div>
               <div class="tab-content">
                 <div class="tab-title">{{ tab.title }}</div>
@@ -144,19 +144,52 @@ const tabs = [
     key: 'api',
     title: 'AI模型',
     description: '配置AI模型API',
-    icon: '🔗'
+    icon: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="12" cy="7" r="2" fill="currentColor" opacity="0.3"/>
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" opacity="0.5"/>
+      <circle cx="12" cy="17" r="1" fill="currentColor" opacity="0.7"/>
+    </svg>`
   },
   {
     key: 'operations',
     title: 'AI节点',
     description: '管理AI节点映射',
-    icon: '🤖'
+    icon: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+      <circle cx="12" cy="12" r="1" fill="currentColor"/>
+      <path d="M12 1V6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M12 18V23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M4.22 4.22L7.76 7.76" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M16.24 16.24L19.78 19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M1 12H6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M18 12H23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M4.22 19.78L7.76 16.24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M16.24 7.76L19.78 4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="6" cy="6" r="1" fill="currentColor" opacity="0.6"/>
+      <circle cx="18" cy="6" r="1" fill="currentColor" opacity="0.6"/>
+      <circle cx="6" cy="18" r="1" fill="currentColor" opacity="0.6"/>
+      <circle cx="18" cy="18" r="1" fill="currentColor" opacity="0.6"/>
+    </svg>`
   },
   {
     key: 'system',
     title: '系统管理',
     description: '系统维护操作',
-    icon: '🛠️'
+    icon: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+      <path d="M19.4 15A1.65 1.65 0 0 0 21 13.09A1.65 1.65 0 0 0 19.4 9" stroke="currentColor" stroke-width="2"/>
+      <path d="M4.6 9A1.65 1.65 0 0 0 3 10.91A1.65 1.65 0 0 0 4.6 15" stroke="currentColor" stroke-width="2"/>
+      <path d="M15 4.6A1.65 1.65 0 0 0 13.09 3A1.65 1.65 0 0 0 9 4.6" stroke="currentColor" stroke-width="2"/>
+      <path d="M9 19.4A1.65 1.65 0 0 0 10.91 21A1.65 1.65 0 0 0 15 19.4" stroke="currentColor" stroke-width="2"/>
+      <circle cx="12" cy="12" r="1" fill="currentColor"/>
+      <path d="M12 8V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <path d="M12 17V16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <path d="M16 12H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <path d="M7 12H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+    </svg>`
   }
 ]
 

@@ -11,32 +11,35 @@ export const aiModelApi = {
     })
   },
 
-  // 获取单个模型配置
+  // 获取单个模型配置 - 改为POST请求
   async getModel(modelName: string): Promise<ModelConfigData> {
-    return apiJsonRequest(`${API_CONFIG.BASE_URL}/sf/api/models/${encodeURIComponent(modelName)}`, {
-      method: 'GET',
+    return apiJsonRequest(`${API_CONFIG.BASE_URL}/sf/api/models/get`, {
+      method: 'POST',
+      body: JSON.stringify({ modelName }),
       requireAuth: true
     })
   },
 
   // 保存模型配置（创建或更新）
   async saveModel(modelName: string, config: ModelConfigData): Promise<ApiResponse> {
-    return apiJsonRequest(`${API_CONFIG.BASE_URL}/sf/api/models/${encodeURIComponent(modelName)}`, {
+    return apiJsonRequest(`${API_CONFIG.BASE_URL}/sf/api/models/save`, {
       method: 'POST',
-      body: JSON.stringify(config),
+      body: JSON.stringify({ ...config, modelName }),
       requireAuth: true
     })
   },
 
-  // 删除模型配置
+  // 删除模型配置 - 改为POST请求
   async deleteModel(modelName: string): Promise<ApiResponse> {
-    return apiJsonRequest(`${API_CONFIG.BASE_URL}/sf/api/models/${encodeURIComponent(modelName)}`, {
-      method: 'DELETE',
+    return apiJsonRequest(`${API_CONFIG.BASE_URL}/sf/api/models/delete`, {
+      method: 'POST',
+      body: JSON.stringify({ modelName }),
       requireAuth: true
     })
   },
 
-  // 测试模型连接
+  // 测试模型连接 - 改为POST请求
+  // 测试模型连接 - 修改为路径参数方式
   async testModel(modelName: string): Promise<TestConnectionResponse> {
     return apiJsonRequest(`${API_CONFIG.BASE_URL}/sf/api/models/${encodeURIComponent(modelName)}/test`, {
       method: 'POST',

@@ -35,7 +35,6 @@
           <div class="stat-number">{{ modelsData.total }}</div>
           <div class="stat-label">全部模型</div>
         </div>
-        <div class="stat-icon">🤖</div>
       </div>
       <div
         class="stat-card"
