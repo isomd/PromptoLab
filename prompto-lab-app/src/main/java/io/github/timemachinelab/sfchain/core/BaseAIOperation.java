@@ -2,6 +2,8 @@ package io.github.timemachinelab.sfchain.core;
 
 import com.alibaba.fastjson.JSONObject;
 import io.github.timemachinelab.sfchain.annotation.AIOp;
+import io.github.timemachinelab.sfchain.core.logging.AICallLog;
+import io.github.timemachinelab.sfchain.core.logging.AICallLogManager;
 import io.github.timemachinelab.sfchain.core.openai.OpenAICompatibleModel;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import javax.annotation.PostConstruct;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static io.github.timemachinelab.sfchain.constants.AIOperationConstant.JSON_REPAIR_OP;
 
@@ -130,42 +134,93 @@ public abstract class BaseAIOperation<INPUT, OUTPUT> {
      * @param modelName 指定的模型名称，为null时使用默认模型
      * @return 输出结果
      */
+    // 在BaseAIOperation类中添加以下字段和方法
+    
+    @Autowired
+    private AICallLogManager logManager;
+    
+    // 在execute方法中添加详细日志记录
     public OUTPUT execute(INPUT input, String modelName) {
+        String callId = UUID.randomUUID().toString();
+        LocalDateTime startTime = LocalDateTime.now();
+        long startMillis = System.currentTimeMillis();
+        
+        AICallLog.AICallLogBuilder logBuilder = AICallLog.builder()
+                .callId(callId)
+                .operationType(annotation.value())
+                .callTime(startTime)
+                .input(input)
+                .modelName(modelName)
+                .frequency(1)
+                .lastAccessTime(startTime);
+        
         try {
             // 获取模型
             AIModel model = getModel(modelName);
+            logBuilder.modelName(model.getName());
             
             // 构建提示词
             String prompt = buildPrompt(input);
+            logBuilder.prompt(prompt);
             
             // 获取操作配置
             AIOperationRegistry.OperationConfig config = operationRegistry.getOperationConfig(annotation.value());
             
-            // 合并注解配置和运行时配置
+            // 合并配置
             Integer finalMaxTokens = config.getMaxTokens() > 0 ? Integer.valueOf(config.getMaxTokens()) : (annotation.defaultMaxTokens() > 0 ? annotation.defaultMaxTokens() : null);
             Double finalTemperature = config.getTemperature() >= 0 ? Double.valueOf(config.getTemperature()) : (annotation.defaultTemperature() >= 0 ? annotation.defaultTemperature() : null);
             Boolean finalJsonOutput = config.isRequireJsonOutput() || annotation.requireJsonOutput();
             boolean finalThinking = config.isSupportThinking() || annotation.supportThinking();
             
-            // 调用AI模型 - 根据模型类型选择合适的方法
+            // 记录请求参数
+            AICallLog.AIRequestParams requestParams = AICallLog.AIRequestParams.builder()
+                    .maxTokens(finalMaxTokens)
+                    .temperature(finalTemperature)
+                    .jsonOutput(finalJsonOutput)
+                    .thinking(finalThinking)
+                    .build();
+            logBuilder.requestParams(requestParams);
+            
+            // 调用AI模型
             String response;
             if (model instanceof OpenAICompatibleModel openAIModel) {
-
                 if (finalThinking) {
-                    // 使用思考模式
                     response = openAIModel.generateWithThinking(prompt, finalMaxTokens, finalTemperature);
                 } else {
-                    // 使用普通模式
                     response = openAIModel.generate(prompt, finalMaxTokens, finalTemperature, finalJsonOutput);
                 }
             } else {
-                // 对于其他类型的模型，使用基础接口
                 response = model.generate(prompt);
             }
             
+            logBuilder.rawResponse(response);
+            
             // 解析响应
-            return parseResponse(response, input);
+            OUTPUT result = parseResponse(response, input);
+            
+            // 记录成功日志
+            long duration = System.currentTimeMillis() - startMillis;
+            AICallLog log = logBuilder
+                    .status(AICallLog.CallStatus.SUCCESS)
+                    .duration(duration)
+                    .output(result)
+                    .build();
+            
+            logManager.addLog(log);
+            
+            return result;
+            
         } catch (Exception e) {
+            // 记录失败日志
+            long duration = System.currentTimeMillis() - startMillis;
+            AICallLog callLog = logBuilder
+                    .status(AICallLog.CallStatus.FAILED)
+                    .duration(duration)
+                    .errorMessage(e.getMessage())
+                    .build();
+            
+            logManager.addLog(callLog);
+            
             log.error("执行AI操作失败: {} - {}", annotation.value(), e.getMessage(), e);
             throw new RuntimeException("AI操作执行失败: " + e.getMessage(), e);
         }

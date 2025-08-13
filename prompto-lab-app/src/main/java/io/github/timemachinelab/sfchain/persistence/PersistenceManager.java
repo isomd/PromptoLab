@@ -167,6 +167,7 @@ public class PersistenceManager {
     
     /**
      * 保存操作配置
+     * 同时更新数据库和内存容器
      * 
      * @param operationType 操作类型
      * @param config 操作配置
@@ -189,15 +190,20 @@ public class PersistenceManager {
                     !modelRegistry.isModelRegistered(config.getModelName())) {
                     throw new IllegalArgumentException("指定的模型不存在: " + config.getModelName());
                 }
-                
-                // 同步更新操作注册中心的模型映射
-                operationRegistry.setModelForOperation(operationType, config.getModelName());
             }
             
-            // 保存到持久化存储
+            // 1. 先保存到数据库
             persistenceService.saveOperationConfig(operationType, config);
             
-            log.info("成功保存操作配置: {}", operationType);
+            // 2. 再同步更新操作注册中心的模型映射
+            if (config.getModelName() != null && !config.getModelName().isEmpty()) {
+                operationRegistry.setModelForOperation(operationType, config.getModelName());
+            } else {
+                // 如果模型名称为空，移除映射
+                operationRegistry.getModelMapping().remove(operationType);
+            }
+            
+            log.info("成功保存操作配置并同步到内存容器: {} -> 模型: {}", operationType, config.getModelName());
         } catch (Exception e) {
             log.error("保存操作配置失败: {} - {}", operationType, e.getMessage());
             throw new RuntimeException("保存操作配置失败: " + operationType, e);
@@ -206,40 +212,44 @@ public class PersistenceManager {
     
     /**
      * 获取操作配置
-     * 优先从@AIOp注解获取动态配置，如果不存在则从持久化存储获取
+     * 优先从数据库获取，如果不存在则从@AIOp注解获取
      * 
      * @param operationType 操作类型
      * @return 操作配置
      */
     public Optional<OperationConfigData> getOperationConfig(String operationType) {
-        // 优先从注解获取动态配置
+        // 优先从数据库获取
+        Optional<OperationConfigData> persistedConfig = persistenceService.getOperationConfig(operationType);
+        if (persistedConfig.isPresent()) {
+            log.debug("从数据库获取操作配置: {}", operationType);
+            return persistedConfig;
+        }
+        
+        // 如果数据库配置不存在，则从注解获取
         Optional<OperationConfigData> dynamicConfig = dynamicOperationConfigService.getOperationConfig(operationType);
         if (dynamicConfig.isPresent()) {
             log.debug("从注解获取操作配置: {}", operationType);
-            return dynamicConfig;
         }
         
-        // 如果注解配置不存在，则从持久化存储获取
-        log.debug("从持久化存储获取操作配置: {}", operationType);
-        return persistenceService.getOperationConfig(operationType);
+        return dynamicConfig;
     }
     
     /**
      * 获取所有操作配置
-     * 合并动态配置（从注解）和持久化配置，动态配置优先
+     * 优先使用数据库配置，注解配置作为补充
      * 
      * @return 所有操作配置
      */
     public Map<String, OperationConfigData> getAllOperationConfigs() {
-        // 获取持久化配置
+        // 获取持久化配置（数据库）
         Map<String, OperationConfigData> persistedConfigs = persistenceService.getAllOperationConfigs();
         
         // 获取动态配置（从注解）
         Map<String, OperationConfigData> dynamicConfigs = dynamicOperationConfigService.getAllOperationConfigs();
         
-        // 合并配置，动态配置优先
-        Map<String, OperationConfigData> allConfigs = new HashMap<>(persistedConfigs);
-        allConfigs.putAll(dynamicConfigs);
+        // 合并配置，数据库配置优先
+        Map<String, OperationConfigData> allConfigs = new HashMap<>(dynamicConfigs);
+        allConfigs.putAll(persistedConfigs); // 数据库配置覆盖注解配置
         
         log.debug("获取所有操作配置: 持久化配置{}个, 动态配置{}个, 总计{}个", 
                 persistedConfigs.size(), dynamicConfigs.size(), allConfigs.size());
@@ -400,7 +410,7 @@ public class PersistenceManager {
     
     /**
      * 初始化操作配置
-     * 从@AIOp注解获取配置并保存到数据库（仅当数据库中不存在时）
+     * 优先使用数据库中的配置，如果不存在则使用注解配置并保存到数据库
      */
     private void initializeOperationConfigs() {
         try {
@@ -408,22 +418,41 @@ public class PersistenceManager {
             for (String operationType : operationRegistry.getAllOperations()) {
                 // 检查数据库中是否已存在该操作的配置
                 Optional<OperationConfigData> existingConfig = persistenceService.getOperationConfig(operationType);
-                if (existingConfig.isEmpty()) {
-                    // 从注解获取动态配置
+                
+                if (existingConfig.isPresent()) {
+                    // 数据库中已存在配置，使用数据库配置更新内存容器
+                    OperationConfigData dbConfig = existingConfig.get();
+                    
+                    // 同步模型映射到操作注册中心
+                    if (dbConfig.getModelName() != null && !dbConfig.getModelName().isEmpty()) {
+                        operationRegistry.setModelForOperation(operationType, dbConfig.getModelName());
+                        log.info("使用数据库配置初始化操作: {} -> 模型: {}", operationType, dbConfig.getModelName());
+                    } else {
+                        log.info("使用数据库配置初始化操作: {} (无关联模型)", operationType);
+                    }
+                } else {
+                    // 数据库中不存在配置，从注解获取并保存到数据库
                     Optional<OperationConfigData> dynamicConfig = dynamicOperationConfigService.getOperationConfig(operationType);
                     if (dynamicConfig.isPresent()) {
+                        OperationConfigData annotationConfig = dynamicConfig.get();
+                        
                         // 保存到数据库
-                        persistenceService.saveOperationConfig(operationType, dynamicConfig.get());
-                        log.info("初始化操作配置到数据库: {}", operationType);
+                        persistenceService.saveOperationConfig(operationType, annotationConfig);
+                        
+                        // 同步模型映射到操作注册中心
+                        if (annotationConfig.getModelName() != null && !annotationConfig.getModelName().isEmpty()) {
+                            operationRegistry.setModelForOperation(operationType, annotationConfig.getModelName());
+                            log.info("从注解初始化操作配置到数据库: {} -> 模型: {}", operationType, annotationConfig.getModelName());
+                        } else {
+                            log.info("从注解初始化操作配置到数据库: {} (无关联模型)", operationType);
+                        }
                     } else {
                         log.debug("操作 {} 没有@AIOp注解配置，跳过初始化", operationType);
                     }
-                } else {
-                    log.debug("操作配置已存在于数据库中，跳过初始化: {}", operationType);
                 }
             }
         } catch (Exception e) {
-            log.warn("初始化操作配置时出现警告: {}", e.getMessage());
+            log.error("初始化操作配置时发生错误: {}", e.getMessage(), e);
         }
     }
     

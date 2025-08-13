@@ -19,8 +19,7 @@ import static io.github.timemachinelab.sfchain.constants.AIOperationConstant.TEX
 @AIOp(
     value = TEXT_CLASSIFICATION_OP,
     description = "对输入文本进行分类，支持情感分析、主题分类等",
-    defaultModel = "deepseek-chat",
-    supportedModels = {"deepseek-chat", "gpt-4o", "siliconflow-qwen"}
+    defaultModel = "deepseek-ai/DeepSeek-V3"
 )
 public class TextClassificationOperation extends BaseAIOperation<TextClassificationOperation.ClassificationRequest, TextClassificationOperation.ClassificationResult> {
 

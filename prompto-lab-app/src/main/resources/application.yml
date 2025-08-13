@@ -7,9 +7,9 @@ spring:
   application:
     name: poet-agent
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://117.72.211.46:5432/promptolab}
-    username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:tmlis666}
+    url: ${SPRING_DATASOURCE_URL:ENC(74AA8WeNmewtlYjGh4jIWPh8E6cxGrZ0M7zg+1wAfBJLR36B6GTw4cvCfA/EhuZiy0oSbrnGRERv5IxzsxfOFA==)}
+    username: ${SPRING_DATASOURCE_USERNAME:ENC(nOfIk0lODnZFZinDkKMeEX5zHzXpOoIj)}
+    password: ${SPRING_DATASOURCE_PASSWORD:ENC(W52dd0i/Q8pT/yEJIKs6Zc/brOr6KjXBPVcwdjoe4g4=)}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
     hikari:
       # 连接最大生命周期（毫秒），设置为比数据库超时时间短

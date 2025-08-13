@@ -105,7 +105,26 @@ public class PostgreSQLPersistenceService implements PersistenceService {
     public void saveOperationConfig(String operationType, OperationConfigData config) {
         log.debug("保存操作配置: {}", operationType);
         config.setOperationType(operationType);
-        OperationConfigEntity entity = convertToEntity(config);
+        
+        // 查找现有实体并更新，或创建新实体
+        OperationConfigEntity entity = operationConfigRepository.findByOperationType(operationType)
+            .map(existing -> {
+                // 更新现有实体，保留 id 和 createdAt
+                Long id = existing.getId();
+                LocalDateTime createdAt = existing.getCreatedAt();
+                
+                // 转换新的配置数据
+                OperationConfigEntity updatedEntity = convertToEntity(config);
+                updatedEntity.setId(id);
+                updatedEntity.setCreatedAt(createdAt);
+                
+                return updatedEntity;
+            })
+            .orElseGet(() -> {
+                // 创建新实体
+                return convertToEntity(config);
+            });
+        
         operationConfigRepository.save(entity);
         log.info("操作配置已保存: {}", operationType);
     }

@@ -94,14 +94,22 @@ public class AIOperationController {
     }
     
     /**
-     * 保存操作配置
+     * 保存操作配置 - 改为统一的save接口，从请求体获取operationType
      */
-    @PostMapping("/{operationType}")
+    @PostMapping("/save")
     public ResponseEntity<Map<String, Object>> saveOperationConfig(
-            @PathVariable String operationType,
             @Valid @RequestBody OperationConfigData config) {
         Map<String, Object> result = new HashMap<>();
         try {
+            // 从config对象中获取operationType
+            String operationType = config.getOperationType();
+            
+            if (operationType == null || operationType.trim().isEmpty()) {
+                result.put("success", false);
+                result.put("message", "操作类型不能为空");
+                return ResponseEntity.badRequest().body(result);
+            }
+            
             persistenceManager.saveOperationConfig(operationType, config);
             
             result.put("success", true);
@@ -110,10 +118,50 @@ public class AIOperationController {
             
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            log.error("保存操作配置失败: {} - {}", operationType, e.getMessage());
+            log.error("保存操作配置失败: {}", e.getMessage());
             result.put("success", false);
             result.put("message", "保存失败: " + e.getMessage());
             return ResponseEntity.badRequest().body(result);
+        }
+    }
+
+    /**
+     * 获取单个操作配置 - 改为POST请求体参数
+     */
+    @PostMapping("/get")
+    public ResponseEntity<Object> getOperation(@RequestBody Map<String, String> request) {
+        try {
+            String operationType = request.get("operationType");
+            
+            if (operationType == null || operationType.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "操作类型不能为空"));
+            }
+            
+            Optional<OperationConfigData> operationOpt = persistenceManager.getOperationConfig(operationType);
+            
+            if (operationOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            OperationConfigData operation = operationOpt.get();
+            
+            // 如果有关联模型，获取模型信息
+            if (operation.getModelName() != null) {
+                Map<String, ModelConfigData> models = persistenceManager.getAllModelConfigs();
+                ModelConfigData model = models.get(operation.getModelName());
+                
+                Map<String, Object> result = new HashMap<>();
+                result.put("operation", operation);
+                result.put("associatedModel", model);
+                return ResponseEntity.ok(result);
+            }
+            
+            return ResponseEntity.ok(operation);
+        } catch (Exception e) {
+            log.error("获取操作配置失败: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "获取操作配置失败: " + e.getMessage()));
         }
     }
     
@@ -179,15 +227,22 @@ public class AIOperationController {
     }
     
     /**
-     * 设置单个操作模型映射
+     * 设置单个操作模型映射 - 改为POST请求体参数
      */
-    @PostMapping("/{operationType}/mapping")
+    @PostMapping("/mapping")
     public ResponseEntity<Map<String, Object>> setOperationMapping(
-            @PathVariable String operationType,
             @RequestBody Map<String, String> request) {
         Map<String, Object> result = new HashMap<>();
         try {
+            String operationType = request.get("operationType");
             String modelName = request.get("modelName");
+            
+            if (operationType == null || operationType.trim().isEmpty()) {
+                result.put("success", false);
+                result.put("message", "操作类型不能为空");
+                return ResponseEntity.badRequest().body(result);
+            }
+            
             if (modelName == null || modelName.trim().isEmpty()) {
                 result.put("success", false);
                 result.put("message", "模型名称不能为空");
@@ -218,7 +273,7 @@ public class AIOperationController {
             
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            log.error("设置操作映射失败: {} - {}", operationType, e.getMessage());
+            log.error("设置操作映射失败: {}", e.getMessage());
             result.put("success", false);
             result.put("message", "设置失败: " + e.getMessage());
             return ResponseEntity.badRequest().body(result);
