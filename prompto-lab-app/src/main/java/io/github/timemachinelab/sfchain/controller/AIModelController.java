@@ -87,11 +87,11 @@ public class AIModelController {
     /**
      * 创建或更新模型配置
      */
-    @PostMapping("/{modelName}")
+    @PostMapping("/save")
     public ResponseEntity<Map<String, Object>> saveModel(
-            @PathVariable String modelName,
             @Valid @RequestBody ModelConfigData config) {
         Map<String, Object> result = new HashMap<>();
+        String modelName = config.getModelName();
         try {
             // 验证模型配置
             boolean validationResult = validateModelConfig(modelName, config);
