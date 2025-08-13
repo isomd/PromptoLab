@@ -1,12 +1,10 @@
-package io.github.timemachinelab.ainode;
+package io.github.timemachinelab.testnode.ainode;
 
 import io.github.timemachinelab.sfchain.annotation.AIOp;
 import io.github.timemachinelab.sfchain.core.BaseAIOperation;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-
 
 /**
  * 描述: AI对话Demo节点
@@ -40,8 +38,7 @@ public class AIChatOperation extends BaseAIOperation<AIChatOperation.ChatRequest
                 4. 返回的答案必须是以下JSON格式：
                 ```json
                 {
-                    "answer": "回答内容",
-                    "userInput": "用户输入内容"
+                    "answer": "回答内容"
                 }
                 ```
                 
@@ -63,7 +60,6 @@ public class AIChatOperation extends BaseAIOperation<AIChatOperation.ChatRequest
             log.warn("解析AI对话结果失败，使用默认响应: {}", e.getMessage());
             ChatResponse response = new ChatResponse();
             response.setAnswer("抱歉，我暂时无法回答这个问题。");
-            response.setUserInput(input.getQuestion());
             return response;
         }
     }
@@ -96,10 +92,5 @@ public class AIChatOperation extends BaseAIOperation<AIChatOperation.ChatRequest
          * AI的回答内容
          */
         private String answer;
-
-        /**
-         * 用户的输入内容
-         */
-        private String userInput;
     }
 }
