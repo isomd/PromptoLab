@@ -20,8 +20,7 @@ import static io.github.timemachinelab.sfchain.constants.AIOperationConstant.JSO
  */
 @AIOp(value = JSON_REPAIR_OP, 
       description = "修复格式错误的JSON字符串",
-      defaultModel = "deepseek-chat",
-      supportedModels = {"deepseek-chat", "gpt-4o-mini", "qwen-turbo"},
+      defaultModel = "deepseek-ai/DeepSeek-V3",
       requireJsonOutput = false,
       autoRepairJson = false)
 @Component
