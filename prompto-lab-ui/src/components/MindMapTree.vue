@@ -178,24 +178,54 @@ const layoutNodes = computed(() => {
   const nodes: LayoutNode[] = []
   const nodeWidth = 200 // 增加节点宽度
   const nodeHeight = 45 // 稍微增加节点高度
-  const levelGap = Math.max(250, containerWidth.value / 6) // 动态调整层级间距
+  const levelGap = Math.min(280, Math.max(220, containerWidth.value / 8)) // 限制最大层级间距，使布局更紧凑
   const siblingGap = 70 // 增加兄弟节点间距
+  const truncateText = (text: string, maxWidth: number) => {
+  // 基于节点宽度和字体大小计算最大字符数
+  // 节点宽度200px，减去图标35px和右侧边距20px，可用宽度约145px
+  // 字体大小13px，平均字符宽度约8px（中文）或6px（英文）
+  const availableWidth = maxWidth - 55 // 减去图标和边距
+  const avgCharWidth = /[\u4e00-\u9fa5]/.test(text) ? 8 : 6 // 中文字符更宽
+  const maxChars = Math.floor(availableWidth / avgCharWidth)
   
+  if (text.length <= maxChars) {
+    return text
+  }
+  
+  // 优先在标点符号处截断
+  const punctuation = /[。！？；，、]/
+  let truncateIndex = maxChars - 4 // 为省略号留空间
+  
+  // 向前查找最近的标点符号
+  for (let i = truncateIndex; i >= Math.max(0, truncateIndex - 10); i--) {
+    if (punctuation.test(text[i])) {
+      truncateIndex = i + 1
+      break
+    }
+  }
+  
+  // 避免在单词中间截断（英文）
+  if (!/[\u4e00-\u9fa5]/.test(text)) {
+    while (truncateIndex > 0 && text[truncateIndex] !== ' ' && text[truncateIndex - 1] !== ' ') {
+      truncateIndex--
+    }
+  }
+  
+  return text.substring(0, truncateIndex).trim() + '...'
+}
   // 计算每个节点的位置
   const calculateLayout = (nodeId: string, level: number, siblingIndex: number, parentX?: number, parentY?: number) => {
     const node = props.conversationTree.get(nodeId)
     if (!node) return
     
-    const truncatedText = node.content.length > 25 
-      ? node.content.substring(0, 25) + '...'
-      : node.content
+    const truncatedText = truncateText(node.content, nodeWidth)
     
     let x: number
     let y: number
     
     if (level === 0) {
-      // 根节点居中
-      x = svgWidth.value / 2 - nodeWidth / 2
+      // 根节点位置优化 - 不完全居中，留出更多右侧空间
+      x = Math.min(100, svgWidth.value / 6)
       y = 60
     } else {
       // 子节点布局
@@ -343,7 +373,7 @@ onUnmounted(() => {
   border-left: 1px solid rgba(212, 175, 55, 0.2);
   overflow: hidden;
   position: relative;
-  min-width: 1200px;
+  /* min-width: 1200px; */
   width: 100%; /* 确保占满父容器 */
 }
 
@@ -547,8 +577,18 @@ onUnmounted(() => {
   font-family: 'Inter', 'SF Pro Display', sans-serif;
   font-weight: 500;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  /* 添加文字渲染优化 */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  /* 确保文字不会溢出节点 */
+  dominant-baseline: middle;
 }
 
+/* 添加省略号样式优化 */
+.node-text::after {
+  content: '';
+  /* 可以通过伪元素添加更好的省略号效果 */
+}
 .node-group:hover .node-text {
   font-weight: 600;
   fill: #ffffff;
