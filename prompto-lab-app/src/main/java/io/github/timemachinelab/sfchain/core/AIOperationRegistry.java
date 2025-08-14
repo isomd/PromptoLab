@@ -86,13 +86,7 @@ public class AIOperationRegistry {
      */
     public String getModelForOperation(String operationType) {
         // 优先从内存缓存获取
-        String cachedModel = modelMapping.get(operationType);
-        if (cachedModel != null) {
-            return cachedModel;
-        }
-        
-        // 如果缓存中没有，可以从 PersistenceManager 获取操作配置中的模型名称
-        return null; // 或者注入 PersistenceManager 来获取
+        return modelMapping.get(operationType);
     }
     
     /**

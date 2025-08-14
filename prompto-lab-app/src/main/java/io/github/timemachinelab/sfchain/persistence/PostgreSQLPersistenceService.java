@@ -29,7 +29,6 @@ public class PostgreSQLPersistenceService implements PersistenceService {
     
     private final ModelConfigRepository modelConfigRepository;
     private final OperationConfigRepository operationConfigRepository;
-    // 移除 operationModelMappingRepository 依赖
     
     @Override
     public void saveModelConfig(String modelName, ModelConfigData config) {

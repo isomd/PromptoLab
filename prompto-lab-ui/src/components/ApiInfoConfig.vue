@@ -24,34 +24,34 @@
       </div>
     </div>
 
-    <!-- 可点击的统计卡片 -->
-    <div class="stats-section" v-if="modelsData">
-      <div
-        class="stat-card"
-        :class="{ 'active': selectedProvider === 'all' }"
-        @click="selectProvider('all')"
-      >
-        <div class="stat-content">
-          <div class="stat-number">{{ modelsData.total }}</div>
-          <div class="stat-label">全部模型</div>
-        </div>
-      </div>
-      <div
-        class="stat-card"
-        v-for="(models, provider) in modelsData.groupedByProvider"
-        :key="provider"
-        :class="{ 'active': selectedProvider === provider }"
-        @click="selectProvider(provider)"
-      >
-        <div class="stat-content">
-          <div class="stat-number">{{ models.length }}</div>
-          <div class="stat-label">{{ getProviderName(provider) }}</div>
-        </div>
-        <div class="stat-icon">
-          <img :src="getProviderIcon(provider)" alt="provider icon" class="stat-provider-icon" />
-        </div>
-      </div>
+<!-- 可点击的统计卡片 -->
+<div class="stats-section" v-if="modelsData">
+  <div
+    class="stat-card"
+    :class="{ 'active': selectedProvider === 'all' }"
+    @click="selectProvider('all')"
+  >
+    <div class="stat-content">
+      <div class="stat-number">{{ modelsData.total }}</div>
+      <div class="stat-label">全部模型</div>
     </div>
+  </div>
+  <div
+    class="stat-card"
+    v-for="{ provider, models } in sortedProviderStats"
+    :key="provider"
+    :class="{ 'active': selectedProvider === provider }"
+    @click="selectProvider(provider)"
+  >
+    <div class="stat-content">
+      <div class="stat-number">{{ models.length }}</div>
+      <div class="stat-label">{{ getProviderName(provider) }}</div>
+    </div>
+    <div class="stat-icon">
+      <img :src="getProviderIcon(provider)" alt="provider icon" class="stat-provider-icon" />
+    </div>
+  </div>
+</div>
 
     <!-- 主要内容区域 -->
     <div class="main-content">
@@ -118,8 +118,8 @@
               <div class="model-identity">
                 <div
                   class="model-avatar"
-                  :title="'点击复制模型名: ' + model.modelName"
-                  @click="copyToClipboard(model.modelName)"
+                  :title="'点击复制图标'"
+                  @click="copyToClipboard(getModelIcon(model.provider || 'other'))"
                 >
                   <img :src="getProviderIcon(model.provider || 'other')" alt="provider icon" class="provider-icon" />
                 </div>
@@ -441,6 +441,37 @@ const filteredModels = computed(() => {
   }
 
   return filtered
+})
+
+// 新增：按照getProviderIcon顺序排列的提供商统计
+const sortedProviderStats = computed(() => {
+  if (!modelsData.value?.groupedByProvider) {
+    return []
+  }
+
+  // 定义提供商顺序（与getProviderIcon中的顺序一致）
+  const providerOrder = ['openai', 'anthropic', 'google', 'deepseek', 'doubao', 'qianwen', 'other']
+
+  const stats = []
+
+  // 按照预定义顺序添加存在的提供商
+  for (const provider of providerOrder) {
+    if (modelsData.value.groupedByProvider[provider]) {
+      stats.push({
+        provider,
+        models: modelsData.value.groupedByProvider[provider]
+      })
+    }
+  }
+
+  // 添加不在预定义列表中的其他提供商
+  for (const [provider, models] of Object.entries(modelsData.value.groupedByProvider)) {
+    if (!providerOrder.includes(provider)) {
+      stats.push({ provider, models })
+    }
+  }
+
+  return stats
 })
 
 // 辅助函数
@@ -1612,3 +1643,4 @@ onMounted(() => {
   }
 }
 </style>
+
