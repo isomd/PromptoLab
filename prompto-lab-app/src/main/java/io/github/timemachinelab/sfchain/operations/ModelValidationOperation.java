@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import static io.github.timemachinelab.sfchain.constants.AIOperationConstant.MODEL_VALIDATION_OP;
+
 /**
  * 描述: 模型验证操作 - 用于验证模型配置是否可用
  *
@@ -16,8 +18,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @AIOp(
-        value = "MODEL_VALIDATION_OP",
-        description = "验证模型配置是否可用的简单测试操作"
+        value = MODEL_VALIDATION_OP,
+        description = "验证模型配置是否可用的简单测试操作",
+        requireJsonOutput = false
 )
 public class ModelValidationOperation extends BaseAIOperation<ModelValidationOperation.ValidationRequest, ModelValidationOperation.ValidationResult> {
 

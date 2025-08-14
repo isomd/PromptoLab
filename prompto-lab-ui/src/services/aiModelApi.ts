@@ -39,10 +39,10 @@ export const aiModelApi = {
   },
 
   // 测试模型连接 - 改为POST请求
-  // 测试模型连接 - 修改为路径参数方式
   async testModel(modelName: string): Promise<TestConnectionResponse> {
-    return apiJsonRequest(`${API_CONFIG.BASE_URL}/sf/api/models/${encodeURIComponent(modelName)}/test`, {
+    return apiJsonRequest(`${API_CONFIG.BASE_URL}/sf/api/models/test`, {
       method: 'POST',
+      body: JSON.stringify({ modelName }),
       requireAuth: true
     })
   }

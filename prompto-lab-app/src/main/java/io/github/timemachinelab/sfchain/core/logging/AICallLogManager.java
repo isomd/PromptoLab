@@ -60,31 +60,32 @@ public class AICallLogManager {
     }
     
     /**
-     * 获取调用日志
+     * 获取完整调用日志（包含所有详细信息）
      */
-    public AICallLog getLog(String callId) {
+    public AICallLog getFullLog(String callId) {
         lock.readLock().lock();
         try {
-            AICallLog log = logStorage.get(callId);
-            if (log != null) {
+            AICallLog callLog = logStorage.get(callId);
+            if (callLog != null) {
                 // 更新访问时间和频次
-                log.setLastAccessTime(LocalDateTime.now());
+                callLog.setLastAccessTime(LocalDateTime.now());
                 updateFrequency(callId);
             }
-            return log;
+            return callLog;
         } finally {
             lock.readLock().unlock();
         }
     }
     
     /**
-     * 获取所有日志(按时间倒序)
+     * 获取所有日志摘要(按时间倒序)
      */
-    public List<AICallLog> getAllLogs() {
+    public List<AICallLogSummary> getAllLogSummaries() {
         lock.readLock().lock();
         try {
             return logStorage.values().stream()
                     .sorted((a, b) -> b.getCallTime().compareTo(a.getCallTime()))
+                    .map(AICallLogSummary::fromFullLog)
                     .collect(Collectors.toList());
         } finally {
             lock.readLock().unlock();
@@ -92,14 +93,15 @@ public class AICallLogManager {
     }
     
     /**
-     * 根据操作类型获取日志
+     * 根据操作类型获取日志摘要
      */
-    public List<AICallLog> getLogsByOperation(String operationType) {
+    public List<AICallLogSummary> getLogSummariesByOperation(String operationType) {
         lock.readLock().lock();
         try {
             return logStorage.values().stream()
                     .filter(log -> operationType.equals(log.getOperationType()))
                     .sorted((a, b) -> b.getCallTime().compareTo(a.getCallTime()))
+                    .map(AICallLogSummary::fromFullLog)
                     .collect(Collectors.toList());
         } finally {
             lock.readLock().unlock();
@@ -107,14 +109,15 @@ public class AICallLogManager {
     }
     
     /**
-     * 根据模型名称获取日志
+     * 根据模型名称获取日志摘要
      */
-    public List<AICallLog> getLogsByModel(String modelName) {
+    public List<AICallLogSummary> getLogSummariesByModel(String modelName) {
         lock.readLock().lock();
         try {
             return logStorage.values().stream()
                     .filter(log -> modelName.equals(log.getModelName()))
                     .sorted((a, b) -> b.getCallTime().compareTo(a.getCallTime()))
+                    .map(AICallLogSummary::fromFullLog)
                     .collect(Collectors.toList());
         } finally {
             lock.readLock().unlock();
