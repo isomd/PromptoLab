@@ -13,11 +13,6 @@ public class AIOperationConstant {
      * JSON修复操作
      */
     public static final String JSON_REPAIR_OP = "JSON_REPAIR_OP";
-    
-    /**
-     * 文本分类操作
-     */
-    public static final String TEXT_CLASSIFICATION_OP = "TEXT_CLASSIFICATION";
 
     /**
      * 模型验证操作

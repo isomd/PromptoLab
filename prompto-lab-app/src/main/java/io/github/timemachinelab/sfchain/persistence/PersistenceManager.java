@@ -11,6 +11,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -195,15 +196,10 @@ public class PersistenceManager {
             // 1. 先保存到数据库
             persistenceService.saveOperationConfig(operationType, config);
             
-            // 2. 再同步更新操作注册中心的模型映射
-            if (config.getModelName() != null && !config.getModelName().isEmpty()) {
-                operationRegistry.setModelForOperation(operationType, config.getModelName());
-            } else {
-                // 如果模型名称为空，移除映射
-                operationRegistry.getModelMapping().remove(operationType);
-            }
+            // 2. ✅ 完整同步所有配置到框架（包括模型映射和其他参数）
+            syncDatabaseConfigToFramework(operationType, config);
             
-            log.info("成功保存操作配置并同步到内存容器: {} -> 模型: {}", operationType, config.getModelName());
+            log.info("成功保存操作配置并完整同步到框架: {} -> 模型: {}", operationType, config.getModelName());
         } catch (Exception e) {
             log.error("保存操作配置失败: {} - {}", operationType, e.getMessage());
             throw new RuntimeException("保存操作配置失败: " + operationType, e);
@@ -312,7 +308,7 @@ public class PersistenceManager {
      * 
      * @return 备份名称列表
      */
-    public java.util.List<String> getAllBackupNames() {
+    public List<String> getAllBackupNames() {
         return persistenceService.getAllBackupNames();
     }
     
@@ -410,49 +406,223 @@ public class PersistenceManager {
     
     /**
      * 初始化操作配置
-     * 优先使用数据库中的配置，如果不存在则使用注解配置并保存到数据库
+     * 1. 从数据库获取所有操作配置
+     * 2. 与框架中的操作进行对比
+     * 3. 数据库没有的操作新增到数据库
+     * 4. 数据库有的操作以数据库配置为准同步到框架
      */
     private void initializeOperationConfigs() {
         try {
-            // 获取所有已注册的操作类型
-            for (String operationType : operationRegistry.getAllOperations()) {
-                // 检查数据库中是否已存在该操作的配置
-                Optional<OperationConfigData> existingConfig = persistenceService.getOperationConfig(operationType);
-                
-                if (existingConfig.isPresent()) {
-                    // 数据库中已存在配置，使用数据库配置更新内存容器
-                    OperationConfigData dbConfig = existingConfig.get();
-                    
-                    // 同步模型映射到操作注册中心
-                    if (dbConfig.getModelName() != null && !dbConfig.getModelName().isEmpty()) {
-                        operationRegistry.setModelForOperation(operationType, dbConfig.getModelName());
-                        log.info("使用数据库配置初始化操作: {} -> 模型: {}", operationType, dbConfig.getModelName());
-                    } else {
-                        log.info("使用数据库配置初始化操作: {} (无关联模型)", operationType);
-                    }
+            // 1. 获取数据库中所有的操作配置
+            Map<String, OperationConfigData> dbConfigs = persistenceService.getAllOperationConfigs();
+            
+            // 2. 获取框架中所有已注册的操作
+            List<String> frameworkOperations = operationRegistry.getAllOperations();
+            
+            // 3. 处理框架中的操作
+            for (String operationType : frameworkOperations) {
+                if (dbConfigs.containsKey(operationType)) {
+                    // 数据库中存在该操作配置，以数据库配置为准同步到框架
+                    OperationConfigData dbConfig = dbConfigs.get(operationType);
+                    syncDatabaseConfigToFramework(operationType, dbConfig);
+                    log.info("使用数据库配置同步到框架: {} -> 模型: {}", operationType, dbConfig.getModelName());
                 } else {
-                    // 数据库中不存在配置，从注解获取并保存到数据库
-                    Optional<OperationConfigData> dynamicConfig = dynamicOperationConfigService.getOperationConfig(operationType);
-                    if (dynamicConfig.isPresent()) {
-                        OperationConfigData annotationConfig = dynamicConfig.get();
-                        
-                        // 保存到数据库
-                        persistenceService.saveOperationConfig(operationType, annotationConfig);
-                        
-                        // 同步模型映射到操作注册中心
-                        if (annotationConfig.getModelName() != null && !annotationConfig.getModelName().isEmpty()) {
-                            operationRegistry.setModelForOperation(operationType, annotationConfig.getModelName());
-                            log.info("从注解初始化操作配置到数据库: {} -> 模型: {}", operationType, annotationConfig.getModelName());
-                        } else {
-                            log.info("从注解初始化操作配置到数据库: {} (无关联模型)", operationType);
-                        }
+                    // 数据库中不存在该操作配置，从注解获取并新增到数据库
+                    Optional<OperationConfigData> annotationConfig = dynamicOperationConfigService.getOperationConfig(operationType);
+                    if (annotationConfig.isPresent()) {
+                        OperationConfigData config = annotationConfig.get();
+                        persistenceService.saveOperationConfig(operationType, config);
+                        syncDatabaseConfigToFramework(operationType, config);
+                        log.info("从注解新增操作配置到数据库: {} -> 模型: {}", operationType, config.getModelName());
                     } else {
                         log.debug("操作 {} 没有@AIOp注解配置，跳过初始化", operationType);
                     }
                 }
             }
+            
+            // 4. 处理数据库中存在但框架中不存在的操作（可能是已删除的操作）
+            for (String dbOperationType : dbConfigs.keySet()) {
+                if (!frameworkOperations.contains(dbOperationType)) {
+                    log.warn("数据库中存在操作配置但框架中未注册该操作: {}，建议清理数据库配置", dbOperationType);
+                    // 可选：自动删除数据库中的无效配置
+                     persistenceService.deleteOperationConfig(dbOperationType);
+                }
+            }
+            
         } catch (Exception e) {
             log.error("初始化操作配置时发生错误: {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 将数据库配置同步到框架中
+     * 
+     * @param operationType 操作类型
+     * @param dbConfig 数据库配置
+     */
+    private void syncDatabaseConfigToFramework(String operationType, OperationConfigData dbConfig) {
+        try {
+            log.debug("同步数据库配置到框架: {} -> {}", operationType, dbConfig);
+            
+            // 1. 更新AIOperationRegistry中的操作配置
+            updateOperationConfigInRegistry(operationType, dbConfig);
+            
+            // 2. 同步模型映射关系
+            if (dbConfig.getModelName() != null && !dbConfig.getModelName().trim().isEmpty()) {
+                syncModelMapping(operationType, dbConfig.getModelName());
+            }
+            
+            log.info("成功同步操作配置到框架: {}", operationType);
+            
+        } catch (Exception e) {
+            log.error("同步操作配置到框架失败: {} - {}", operationType, e.getMessage(), e);
+            throw new RuntimeException("同步配置失败: " + operationType, e);
+        }
+    }
+    
+    /**
+     * 更新AIOperationRegistry中的操作配置
+     * 
+     * @param operationType 操作类型
+     * @param dbConfig 数据库配置
+     */
+    private void updateOperationConfigInRegistry(String operationType, OperationConfigData dbConfig) {
+        // 获取或创建操作配置
+        AIOperationRegistry.OperationConfig registryConfig = 
+            operationRegistry.getOperationConfig(operationType);
+        
+        if (registryConfig == null) {
+            registryConfig = new AIOperationRegistry.OperationConfig();
+        }
+        
+        // 将数据库配置映射到注册中心配置
+        if (dbConfig.getEnabled() != null) {
+            registryConfig.setEnabled(dbConfig.getEnabled());
+        }
+        
+        if (dbConfig.getMaxTokens() != null && dbConfig.getMaxTokens() > 0) {
+            registryConfig.setMaxTokens(dbConfig.getMaxTokens());
+        }
+        
+        if (dbConfig.getTemperature() != null && dbConfig.getTemperature() >= 0) {
+            registryConfig.setTemperature(dbConfig.getTemperature());
+        }
+        
+        if (dbConfig.getJsonOutput() != null) {
+            registryConfig.setRequireJsonOutput(dbConfig.getJsonOutput());
+        }
+        
+        if (dbConfig.getThinkingMode() != null) {
+            registryConfig.setSupportThinking(dbConfig.getThinkingMode());
+        }
+        
+        if (dbConfig.getRetryCount() != null && dbConfig.getRetryCount() >= 0) {
+            registryConfig.setRetryCount(dbConfig.getRetryCount());
+        }
+        
+        // 处理超时时间转换（数据库存储毫秒，注册中心使用秒）
+        if (dbConfig.getTimeout() != null && dbConfig.getTimeout() > 0) {
+            int timeoutSeconds = (int) (dbConfig.getTimeout() / 1000);
+            registryConfig.setTimeoutSeconds(Math.max(1, timeoutSeconds));
+        }
+        
+        // 将更新后的配置设置回注册中心
+        operationRegistry.getConfigs().put(operationType, registryConfig);
+        
+        log.debug("已更新操作配置到注册中心: {} -> {}", operationType, registryConfig);
+    }
+    
+    /**
+     * 同步模型映射关系
+     * 
+     * @param operationType 操作类型
+     * @param modelName 模型名称
+     */
+    private void syncModelMapping(String operationType, String modelName) {
+        try {
+            // 验证模型是否存在
+            if (!isValidModel(modelName)) {
+                log.warn("模型不存在，跳过映射同步: {} -> {}", operationType, modelName);
+                return;
+            }
+            
+            // 设置模型映射
+            operationRegistry.setModelForOperation(operationType, modelName);
+            log.debug("已同步模型映射: {} -> {}", operationType, modelName);
+            
+        } catch (Exception e) {
+            log.warn("同步模型映射失败: {} -> {} - {}", operationType, modelName, e.getMessage());
+            // 模型映射失败不应该阻止整个同步过程
+        }
+    }
+    
+    /**
+     * 验证模型是否有效
+     * 
+     * @param modelName 模型名称
+     * @return 是否有效
+     */
+    private boolean isValidModel(String modelName) {
+        try {
+            // 检查模型是否在模型注册中心中存在
+            return modelRegistry.getModel(modelName) != null;
+        } catch (Exception e) {
+            log.debug("验证模型时出错: {} - {}", modelName, e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * 添加操作配置更新方法，供外部调用
+     * 
+     * @param operationType 操作类型
+     * @param configData 配置数据
+     */
+    public void updateOperationConfig(String operationType, OperationConfigData configData) {
+        try {
+            // 验证配置
+            if (!configData.isValid()) {
+                throw new IllegalArgumentException("无效的操作配置: " + operationType);
+            }
+            
+            // 同步到框架
+            syncDatabaseConfigToFramework(operationType, configData);
+            
+            log.info("操作配置更新成功: {}", operationType);
+            
+        } catch (Exception e) {
+            log.error("更新操作配置失败: {} - {}", operationType, e.getMessage(), e);
+            throw new RuntimeException("更新操作配置失败: " + operationType, e);
+        }
+    }
+    
+    /**
+     * 批量同步所有数据库配置到框架
+     */
+    public void syncAllDatabaseConfigsToFramework() {
+        try {
+            Map<String, OperationConfigData> allConfigs = persistenceService.getAllOperationConfigs();
+            
+            log.info("开始批量同步 {} 个操作配置到框架", allConfigs.size());
+            
+            int successCount = 0;
+            int failCount = 0;
+            
+            for (Map.Entry<String, OperationConfigData> entry : allConfigs.entrySet()) {
+                try {
+                    syncDatabaseConfigToFramework(entry.getKey(), entry.getValue());
+                    successCount++;
+                } catch (Exception e) {
+                    log.error("同步操作配置失败: {} - {}", entry.getKey(), e.getMessage());
+                    failCount++;
+                }
+            }
+            
+            log.info("批量同步完成 - 成功: {}, 失败: {}", successCount, failCount);
+            
+        } catch (Exception e) {
+            log.error("批量同步配置失败: {}", e.getMessage(), e);
+            throw new RuntimeException("批量同步配置失败", e);
         }
     }
     

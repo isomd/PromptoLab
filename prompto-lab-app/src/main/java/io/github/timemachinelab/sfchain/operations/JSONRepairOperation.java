@@ -18,11 +18,11 @@ import static io.github.timemachinelab.sfchain.constants.AIOperationConstant.JSO
  * @author suifeng
  * 日期: 2025/8/11
  */
-@AIOp(value = JSON_REPAIR_OP, 
-      description = "修复格式错误的JSON字符串",
-      defaultModel = "deepseek-ai/DeepSeek-V3",
-      requireJsonOutput = false,
-      autoRepairJson = false)
+@AIOp(
+        value = JSON_REPAIR_OP,
+        description = "修复格式错误的JSON字符串",
+        autoRepairJson = false
+)
 @Component
 public class JSONRepairOperation extends BaseAIOperation<String, JSONObject> {
 
@@ -123,7 +123,7 @@ public class JSONRepairOperation extends BaseAIOperation<String, JSONObject> {
         json = json.replaceAll("(:\\s*)(?<!\\\\)'([^']*?)(?<!\\\\)'", "$1\"$2\""); // 修复值的单引号
         
         // 4. 修复缺失的引号
-        json = json.replaceAll("(\\{|,)\\s*(\\w+)\\s*:", "$1\"$2\":");
+        json = json.replaceAll("([{,])\\s*(\\w+)\\s*:", "$1\"$2\":");
         
         // 5. 修复多余或缺失的逗号
         json = json.replaceAll(",\\s*}", "}");  // 移除对象末尾多余的逗号

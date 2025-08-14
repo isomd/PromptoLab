@@ -2,10 +2,11 @@ package io.github.timemachinelab.sfchain.controller;
 
 import io.github.timemachinelab.sfchain.core.logging.AICallLog;
 import io.github.timemachinelab.sfchain.core.logging.AICallLogManager;
-import org.springframework.beans.factory.annotation.Autowired;
+import io.github.timemachinelab.sfchain.core.logging.AICallLogSummary;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.annotation.Resource;
 import java.util.List;
 import java.util.Map;
 
@@ -14,42 +15,43 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/sf/api/ai-logs")
+@CrossOrigin(origins = "*")
 public class AICallLogController {
     
-    @Autowired
+    @Resource
     private AICallLogManager logManager;
     
     /**
-     * 获取所有日志
+     * 获取所有日志摘要（轻量级）
      */
     @GetMapping
-    public ResponseEntity<List<AICallLog>> getAllLogs() {
-        return ResponseEntity.ok(logManager.getAllLogs());
+    public ResponseEntity<List<AICallLogSummary>> getAllLogSummaries() {
+        return ResponseEntity.ok(logManager.getAllLogSummaries());
     }
     
     /**
-     * 根据调用ID获取日志
+     * 根据调用ID获取完整日志详情
      */
     @GetMapping("/{callId}")
-    public ResponseEntity<AICallLog> getLog(@PathVariable String callId) {
-        AICallLog log = logManager.getLog(callId);
+    public ResponseEntity<AICallLog> getFullLog(@PathVariable String callId) {
+        AICallLog log = logManager.getFullLog(callId);
         return log != null ? ResponseEntity.ok(log) : ResponseEntity.notFound().build();
     }
     
     /**
-     * 根据操作类型获取日志
+     * 根据操作类型获取日志摘要（轻量级）
      */
     @GetMapping("/operation/{operationType}")
-    public ResponseEntity<List<AICallLog>> getLogsByOperation(@PathVariable String operationType) {
-        return ResponseEntity.ok(logManager.getLogsByOperation(operationType));
+    public ResponseEntity<List<AICallLogSummary>> getLogSummariesByOperation(@PathVariable String operationType) {
+        return ResponseEntity.ok(logManager.getLogSummariesByOperation(operationType));
     }
     
     /**
-     * 根据模型名称获取日志
+     * 根据模型名称获取日志摘要（轻量级）
      */
     @GetMapping("/model/{modelName}")
-    public ResponseEntity<List<AICallLog>> getLogsByModel(@PathVariable String modelName) {
-        return ResponseEntity.ok(logManager.getLogsByModel(modelName));
+    public ResponseEntity<List<AICallLogSummary>> getLogSummariesByModel(@PathVariable String modelName) {
+        return ResponseEntity.ok(logManager.getLogSummariesByModel(modelName));
     }
     
     /**
