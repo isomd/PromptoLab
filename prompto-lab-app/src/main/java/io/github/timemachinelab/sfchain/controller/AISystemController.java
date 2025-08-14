@@ -23,7 +23,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/sf/api/system")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class AISystemController {
     
     private final PersistenceManager persistenceManager;

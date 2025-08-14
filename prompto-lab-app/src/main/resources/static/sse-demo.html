@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE流传输Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: white;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .message.connected {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        .message.message {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .message.broadcast {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .message.stream {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+        .message.stream_complete {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            font-weight: bold;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .input-group input {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 SSE流传输Demo</h1>
+        
+        <!-- 连接状态 -->
+        <div class="section">
+            <h3>📡 连接状态</h3>
+            <div id="status" class="status disconnected">未连接</div>
+            <div class="input-group">
+                <input type="text" id="clientId" placeholder="输入客户端ID" value="demo-client-001">
+                <button id="connectBtn" onclick="connect()">连接SSE</button>
+                <button id="disconnectBtn" onclick="disconnect()" disabled>断开连接</button>
+            </div>
+        </div>
+        
+        <!-- 消息操作 -->
+        <div class="section">
+            <h3>💬 消息操作</h3>
+            <div class="input-group">
+                <input type="text" id="messageInput" placeholder="输入要发送的消息">
+                <button onclick="sendMessage()" id="sendBtn" disabled>发送消息</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="broadcastInput" placeholder="输入广播消息">
+                <button onclick="broadcast()" id="broadcastBtn">广播消息</button>
+            </div>
+            <div class="input-group">
+                <button onclick="startStream()" id="streamBtn" disabled>开始流式传输</button>
+                <button onclick="getStatus()">获取连接状态</button>
+            </div>
+        </div>
+        
+        <!-- 消息显示 -->
+        <div class="section">
+            <h3>📨 消息记录</h3>
+            <button onclick="clearMessages()" style="float: right;">清空消息</button>
+            <div id="messages" class="messages"></div>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let currentClientId = null;
+        
+        function connect() {
+            const clientId = document.getElementById('clientId').value.trim();
+            if (!clientId) {
+                alert('请输入客户端ID');
+                return;
+            }
+            
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            currentClientId = clientId;
+            eventSource = new EventSource(`/api/demo/sse/${clientId}`);
+            
+            eventSource.onopen = function(event) {
+                updateStatus('connected', `已连接到服务器 (${clientId})`);
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('streamBtn').disabled = false;
+            };
+            
+            eventSource.onerror = function(event) {
+                updateStatus('disconnected', '连接错误或已断开');
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('streamBtn').disabled = true;
+            };
+            
+            // 监听不同类型的消息
+            eventSource.addEventListener('connected', function(event) {
+                addMessage('connected', event.data);
+            });
+            
+            eventSource.addEventListener('message', function(event) {
+                addMessage('message', event.data);
+            });
+            
+            eventSource.addEventListener('broadcast', function(event) {
+                addMessage('broadcast', '[广播] ' + event.data);
+            });
+            
+            eventSource.addEventListener('stream', function(event) {
+                addMessage('stream', '[流式] ' + event.data);
+            });
+            
+            eventSource.addEventListener('stream_complete', function(event) {
+                addMessage('stream_complete', '[完成] ' + event.data);
+            });
+        }
+        
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            updateStatus('disconnected', '已断开连接');
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            document.getElementById('streamBtn').disabled = true;
+        }
+        
+        function sendMessage() {
+            const message = document.getElementById('messageInput').value.trim();
+            if (!message || !currentClientId) {
+                alert('请输入消息内容并确保已连接');
+                return;
+            }
+            
+            fetch(`/api/demo/send/${currentClientId}?message=${encodeURIComponent(message)}`, {
+                method: 'POST'
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('发送结果:', data);
+                document.getElementById('messageInput').value = '';
+            })
+            .catch(error => {
+                console.error('发送失败:', error);
+                alert('发送失败: ' + error.message);
+            });
+        }
+        
+        function broadcast() {
+            const message = document.getElementById('broadcastInput').value.trim();
+            if (!message) {
+                alert('请输入广播消息内容');
+                return;
+            }
+            
+            fetch(`/api/demo/broadcast?message=${encodeURIComponent(message)}`, {
+                method: 'POST'
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('广播结果:', data);
+                document.getElementById('broadcastInput').value = '';
+            })
+            .catch(error => {
+                console.error('广播失败:', error);
+                alert('广播失败: ' + error.message);
+            });
+        }
+        
+        function startStream() {
+            if (!currentClientId) {
+                alert('请先连接SSE');
+                return;
+            }
+            
+            fetch(`/api/demo/stream/${currentClientId}`, {
+                method: 'POST'
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('流式传输结果:', data);
+                addMessage('stream', '[系统] ' + data);
+            })
+            .catch(error => {
+                console.error('启动流式传输失败:', error);
+                alert('启动失败: ' + error.message);
+            });
+        }
+        
+        function getStatus() {
+            fetch('/api/demo/status')
+            .then(response => response.json())
+            .then(data => {
+                addMessage('message', '[状态] 当前连接数: ' + data.totalConnections + ', 连接客户端: ' + JSON.stringify(data.connectedClients));
+            })
+            .catch(error => {
+                console.error('获取状态失败:', error);
+            });
+        }
+        
+        function updateStatus(type, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+        }
+        
+        function addMessage(type, content) {
+            const messagesEl = document.getElementById('messages');
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+            messageEl.textContent = `[${new Date().toLocaleTimeString()}] ${content}`;
+            messagesEl.appendChild(messageEl);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+        
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+        }
+        
+        // 页面关闭时断开连接
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+        
+        // 回车发送消息
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        document.getElementById('broadcastInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                broadcast();
+            }
+        });
+    </script>
+</body>
+</html>

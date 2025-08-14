@@ -6,9 +6,6 @@ import lombok.Data;
 public class MessageRequest {
     private String sessionId;
     private String content;
-    private MessageType type;
-    private String questionId;
-    private Integer selectedOption;
     
     public enum MessageType {
         USER_TEXT,

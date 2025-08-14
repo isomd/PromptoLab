@@ -255,7 +255,7 @@ onMounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: 
+  background:
     radial-gradient(circle at 20% 20%, rgba(212, 175, 55, 0.1) 0%, transparent 50%),
     radial-gradient(circle at 80% 80%, rgba(255, 215, 0, 0.08) 0%, transparent 50%),
     radial-gradient(circle at 40% 60%, rgba(184, 134, 11, 0.06) 0%, transparent 50%);
@@ -270,7 +270,7 @@ onMounted(() => {
   border-radius: 16px;
   padding: 1rem 2rem;
   margin-bottom: 1.5rem;
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(212, 175, 55, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -343,7 +343,7 @@ onMounted(() => {
   border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: 16px 0 0 16px;
   padding: 2rem 1.5rem;
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
@@ -400,7 +400,7 @@ onMounted(() => {
 .tab-item.active {
   background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(255, 215, 0, 0.1));
   border-color: #d4af37;
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgba(212, 175, 55, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
@@ -489,7 +489,7 @@ onMounted(() => {
   border-radius: 12px;
   padding: 1rem;
   margin-bottom: 0.75rem;
-  box-shadow: 
+  box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
@@ -497,7 +497,7 @@ onMounted(() => {
 
 .status-card:hover {
   border-color: rgba(212, 175, 55, 0.4);
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(212, 175, 55, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -554,7 +554,7 @@ onMounted(() => {
   border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: 12px;
   padding: 1rem;
-  box-shadow: 
+  box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
@@ -562,7 +562,7 @@ onMounted(() => {
 
 .stats-card:hover {
   border-color: rgba(212, 175, 55, 0.4);
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(212, 175, 55, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -636,7 +636,7 @@ onMounted(() => {
   );
   position: relative;
   overflow: hidden;
-  box-shadow: 
+  box-shadow:
     0 0 20px rgba(212, 175, 55, 0.3),
     inset 0 0 20px rgba(255, 215, 0, 0.2);
 }
@@ -698,7 +698,7 @@ onMounted(() => {
   border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: 0 16px 16px 0;
   padding: 2rem;
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
@@ -715,7 +715,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: 
+  background:
     radial-gradient(circle at 10% 10%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
     radial-gradient(circle at 90% 90%, rgba(255, 215, 0, 0.03) 0%, transparent 50%);
   pointer-events: none;

@@ -25,7 +25,6 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/sf/api/operations")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class AIOperationController {
     
     private final PersistenceManager persistenceManager;

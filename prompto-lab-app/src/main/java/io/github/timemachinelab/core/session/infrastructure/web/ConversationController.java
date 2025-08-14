@@ -3,6 +3,7 @@ package io.github.timemachinelab.core.session.infrastructure.web;
 import io.github.timemachinelab.core.session.application.ConversationService;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
 import io.github.timemachinelab.core.session.infrastructure.web.dto.MessageRequest;
+
 import io.github.timemachinelab.core.session.infrastructure.web.dto.MessageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -22,9 +23,8 @@ public class ConversationController {
     private final Map<String, SseEmitter> sseEmitters = new ConcurrentHashMap<>();
     
     @PostMapping("/start")
-    public ConversationSession startConversation(@RequestParam String userId, 
-                                               @RequestParam String initialQuestion) {
-        return conversationService.createSession(userId, initialQuestion);
+    public ConversationSession startConversation(@RequestParam String userId) {
+        return conversationService.createSession(userId);
     }
     
     @GetMapping(value = "/sse/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -41,27 +41,21 @@ public class ConversationController {
     
     @PostMapping("/message")
     public void addMessage(@RequestBody MessageRequest request) {
-        switch (request.getType()) {
-            case USER_TEXT:
-                conversationService.addUserAnswer(request.getSessionId(), request.getContent());
-                sendSseMessage(request.getSessionId(), MessageResponse.userAnswer(null, request.getContent()));
-                break;
-                
-            case USER_SELECTION:
-                conversationService.handleUserSelection(request.getSessionId(), request.getQuestionId(), request.getSelectedOption());
-                sendSseMessage(request.getSessionId(), MessageResponse.userAnswer(request.getQuestionId(), "选择了选项: " + request.getSelectedOption()));
-                break;
-                
-            case AI_QUESTION:
-                String nodeId = conversationService.addAIQuestion(request.getSessionId(), request.getContent());
-                sendSseMessage(request.getSessionId(), MessageResponse.aiQuestion(nodeId, request.getContent()));
-                break;
-                
-            case AI_SELECTION_QUESTION:
-                String selectionNodeId = conversationService.addAISelectionQuestion(request.getSessionId(), request.getContent(), new String[]{"简洁风格", "现代风格", "经典风格"});
-                sendSseMessage(request.getSessionId(), MessageResponse.aiSelectionQuestion(selectionNodeId, request.getContent(), new String[]{"简洁风格", "现代风格", "经典风格"}));
-                break;
-        }
+        // 核心业务流程：用户消息 -> AI服务 -> SSE流式返回
+        conversationService.processUserMessage(
+                request.getSessionId(),
+                request.getContent(),
+                response -> sendSseMessage(request.getSessionId(), response)
+        );
+//        switch (request.getType()) {
+//            case USER_TEXT:
+//
+//
+//            case USER_SELECTION:
+//                conversationService.handleUserSelection(request.getSessionId(), request.getQuestionId(), request.getSelectedOption());
+//                sendSseMessage(request.getSessionId(), MessageResponse.userAnswer(request.getQuestionId(), "选择了选项: " + request.getSelectedOption()));
+//                break;
+//        }
     }
     
     @GetMapping("/session/{sessionId}")
