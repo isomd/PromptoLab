@@ -31,7 +31,6 @@ import static io.github.timemachinelab.sfchain.constants.AIOperationConstant.MOD
 @RestController
 @RequestMapping("/sf/api/models")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class AIModelController {
     
     private final PersistenceManager persistenceManager;
