@@ -82,14 +82,14 @@
       <div class="input-container">
         <div class="input-wrapper">
           <div class="input-glow"></div>
-          <textarea 
+          <input 
             v-model="inputMessage"
             @keydown="handleKeydown"
             placeholder="输入您的问题，让AI为您解答..."
             rows="1"
             ref="textareaRef"
             class="message-input"
-          ></textarea>
+          ></input>
           <div class="input-actions">
             <button class="attachment-btn" title="附件">
               <span>📎</span>
@@ -627,7 +627,7 @@ watch(() => props.messages.length, () => {
 .message-input {
   flex: 1;
   min-height: 24px;
-  max-height: 120px;
+  max-height: 150px;
   background: transparent;
   border: none;
   outline: none;
