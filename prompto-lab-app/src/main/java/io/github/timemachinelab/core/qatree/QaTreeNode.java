@@ -1,5 +1,6 @@
 package io.github.timemachinelab.core.qatree;
 
+import io.github.timemachinelab.core.question.BaseQuestion;
 import lombok.Data;
 import java.util.HashMap;
 import java.util.Map;
@@ -12,15 +13,15 @@ public class QaTreeNode {
 
     private Map<String, QaTreeNode> children;
 
-    private QA qa;
+    private BaseQuestion qa;
 
-    public QaTreeNode(QA qa) {
+    public QaTreeNode(BaseQuestion qa) {
         this.id = UUID.randomUUID().toString();
         this.children = new HashMap<>();
         this.qa = qa;
     }
 
-    public void append(QA qa) {
+    public void append(BaseQuestion qa) {
         QaTreeNode node = new QaTreeNode(qa);
         this.append(node);
     }
