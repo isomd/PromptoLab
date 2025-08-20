@@ -1,5 +1,5 @@
 FROM adoptopenjdk:11-jre-hotspot
-COPY *.jar /rvc-captcha.jar
+COPY *.jar /prompto-lab.jar
 
 ARG SERVER_PORT
 ARG ACTIVE
@@ -28,6 +28,6 @@ ENV UNIQUE_ID=${UNIQUE_ID}
 ENV JASYPT_PASSWORD = ${JASYPT_PASSWORD}
 EXPOSE ${SERVER_PORT}
 
-ENTRYPOINT ["java","-jar","/.jar"]
+ENTRYPOINT ["java","-jar","/prompto-lab.jar"]
 
-#<Auto> -e:test -type:single -m:rvc-captcha -v:1.0.2 -rp:8080 -de:<-e ACTIVE=test -e SERVER_PORT=8080>
+#<Auto> -e:test -type:single -m:prompto-lab -v:1.0.2 -rp:8080 -de:<-e ACTIVE=test -e SERVER_PORT=8080>
