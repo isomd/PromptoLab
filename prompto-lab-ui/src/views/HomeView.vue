@@ -377,7 +377,6 @@ onUnmounted(() => {
   color: #ffffff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   position: relative;
-  overflow-x: hidden;
 }
 
 .container {
