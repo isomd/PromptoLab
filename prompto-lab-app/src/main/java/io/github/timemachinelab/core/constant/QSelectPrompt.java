@@ -4,7 +4,7 @@ public class QSelectPrompt {
 
     public final static String Q_SELECT_PROMPT =
             """
-                    ## 选项形式提示词
+                    ## 选项形式的题目
 
                     ### 描述
 

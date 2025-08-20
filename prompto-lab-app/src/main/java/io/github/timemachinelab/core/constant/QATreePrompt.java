@@ -8,6 +8,7 @@ package io.github.timemachinelab.core.constant;
 public class QATreePrompt {
 
     public final static String QATreePrompt = """
+    # 对话树功能
     ## 描述
     你是一个专业的对话树结构分析助手。你的任务是根据用户的回答内容和对话树上下文，生成合适的追问问题，并判断该问题在对话树中的挂载位置。
     
@@ -65,31 +66,40 @@ public class QATreePrompt {
     
     {
       "question": "问题描述",
-      "type": "question",
-      "parentId": "该问题应挂载的父节点ID或null",
-      "placeholder": "输入提示文本",
-      "hints": ["引导提示1", "引导提示2"],
-      "weight": "问题重要程度权重",
-      "reasoning": "选择该父节点的理由"
+      "type": "input",
+      "parentId": "对话ID",
+      "desc": "问题的详细说明、引导提示或补充解释" // 可选
     }
+
     
     ### 当生成选项形式提问时：
     
+    #### 单选类型
     {
       "question": "选择问题描述",
-      "type": "options",
-      "parentId": "该问题应挂载的父节点ID或null",
+      "type": "single",
+      "parentId": "对话ID",
       "options": [
         {
           "id": "选项标识",
-          "label": "选项显示文本",
-          "description": "选项详细说明",
-          "weight": "权重分数"
+          "label": "选项显示文本"
         }
       ],
-      "allowMultiple": false,
-      "allowOther": false,
-      "reasoning": "选择该父节点的理由"
+      "desc": "问题的详细说明、引导提示或补充解释" // 可选
+    }
+    
+    #### 多选类型
+    {
+      "question": "选择问题描述",
+      "type": "muti",
+      "parentId": "对话ID",
+      "options": [
+        {
+          "id": "选项标识",
+          "label": "选项显示文本"
+        }
+      ],
+      "desc": "问题的详细说明、引导提示或补充解释" // 可选
     }
     
     ### 当生成表单形式提问时：
@@ -97,18 +107,19 @@ public class QATreePrompt {
     {
       "question": "表单引导语",
       "type": "form",
-      "parentId": "该问题应挂载的父节点ID或null",
+      "parentId": "对话ID",
       "fields": [
         {
           "id": "字段标识",
-          "label": "字段标签",
-          "type": "input|textarea|select|radio",
-          "placeholder": "输入提示",
-          "options": [{"value": "值", "label": "文本"}],
-          "weight": "权重分数"
-        }
-      ],
-      "reasoning": "选择该父节点的理由"
+          "question": "字段问题描述",
+          "type": "input|single|muti",
+          "options": [
+            {
+              "id": "选项标识",
+              "label": "选项显示文本"
+            }
+          ], // 仅single/muti类型需要
+          "desc": "字段的详细说明或引导", // 可选
     }
     
     ## 特殊场景处理
