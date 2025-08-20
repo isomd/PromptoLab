@@ -14,10 +14,12 @@ public class EncodingUtil {
 
     @Test
     public void getPass() {
-        String encryptedUsername = encryptor.encrypt("root");
-        String encryptedPassword = encryptor.encrypt("root");
+        String sql = encryptor.encrypt("jdbc:postgresql://117.72.211.46:5432/promptolab");
+        String user = encryptor.encrypt("root");
+        String pwd = encryptor.encrypt("tmlis666");
 
-        System.out.println("Username Encrypted: " + encryptedUsername);
-        System.out.println("Password Encrypted: " + encryptedPassword);
+        System.out.println("sql Encrypted: " + sql);
+        System.out.println("Password Encrypted: " + user);
+        System.out.println("Password Encrypted: " + pwd);
     }
 }
