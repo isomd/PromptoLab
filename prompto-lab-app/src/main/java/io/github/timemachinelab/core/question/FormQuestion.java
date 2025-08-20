@@ -38,7 +38,6 @@ public class FormQuestion extends BaseQuestion {
         super(QuestionType.FORM);
     }
 
-
     @Data
     @AllArgsConstructor
     public static class AnswerItem{

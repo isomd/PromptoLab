@@ -18,7 +18,6 @@ import java.util.List;
 @Data
 @Builder
 @NoArgsConstructor
-
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class FormField {
     
