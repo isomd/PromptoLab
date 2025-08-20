@@ -33,13 +33,13 @@ public class QFormPrompt {
                         {
                           "id": "字段标识",
                           "question": "字段问题描述",
-                          "type": "input|single|muti",
+                          "type": "input|single|multi",
                           "options": [
                             {
                               "id": "选项标识",
                               "label": "选项显示文本"
                             }
-                          ], // 仅single/muti类型需要
+                          ], // 仅single/multi类型需要
                           "desc": "字段的详细说明或引导", // 可选
                           "weight": "权重分数"
                         }
@@ -69,21 +69,21 @@ public class QFormPrompt {
                     + **question**：AI生成的简洁明确问题，不超过20字
                     + **type**：优先级顺序选择
                       - single：是否类型或单选题
-                      - muti：多选题
+                      - multi：多选题
                       - **input**：预期一句话或简短描述
-                    + **options**：仅single/muti类型需要的选项数组
+                    + **options**：仅single/multi类型需要的选项数组
                     + **desc**：可选字段，当字段需要补充说明时使用
                     + **weight**：权重分数1-10，最重要的信息为10分，依次递减
 
                     **4. options数组生成规则**
 
-                    + **适用类型**：仅当type为single或muti时需要
-                    + **选项数量**：single类型2-4个选项，muti类型3-6个选项
+                    + **适用类型**：仅当type为single或multi时需要
+                    + **选项数量**：single类型2-4个选项，multi类型3-6个选项
                     + **选项内容**：
                       - **id**：英文标识，用于程序处理
                       - **label**：中文显示文本，简洁明确
                     + **是否类型**：single类型常用于是/否、有/无等二元选择
-                    + **多选类型**：muti类型用于可选择多个答案的情况
+                    + **多选类型**：multi类型用于可选择多个答案的情况
 
                     **5. desc字段规则**
 

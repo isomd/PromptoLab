@@ -35,7 +35,6 @@ public abstract class BaseQuestion {
      */
     private String type;
 
-    
     /**
      * 问题的详细说明、引导提示或补充解释（可选）
      */

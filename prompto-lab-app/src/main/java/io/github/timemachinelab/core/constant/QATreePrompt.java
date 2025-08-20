@@ -91,7 +91,7 @@ public class QATreePrompt {
     #### 多选类型
     {
       "question": "选择问题描述",
-      "type": "muti",
+      "type": "multi",
       "parentId": "对话ID",
       "options": [
         {
@@ -112,13 +112,13 @@ public class QATreePrompt {
         {
           "id": "字段标识",
           "question": "字段问题描述",
-          "type": "input|single|muti",
+          "type": "input|single|multi",
           "options": [
             {
               "id": "选项标识",
               "label": "选项显示文本"
             }
-          ], // 仅single/muti类型需要
+          ], // 仅single/multi类型需要
           "desc": "字段的详细说明或引导", // 可选
           "weight": "权重分数"
         }

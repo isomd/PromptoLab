@@ -46,7 +46,7 @@ public class QSelectPrompt {
                     ```json
                     {
                       "question": "选择问题描述",
-                      "type": "muti",
+                      "type": "multi",
                       "parentId": "对话ID",
                       "options": [
                         {
@@ -69,8 +69,8 @@ public class QSelectPrompt {
                     **2. type字段规则**
 
                     + single：单选模式，用户只能选择一个选项
-                    + muti：多选模式，用户可以选择多个选项
-                    + **判断标准**：问题中包含"哪些"、"都有什么"等多选指向词汇时使用muti
+                    + multi：多选模式，用户可以选择多个选项
+                    + **判断标准**：问题中包含"哪些"、"都有什么"等多选指向词汇时使用multi
 
                     **3. options数组生成规则**
 
