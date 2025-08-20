@@ -204,11 +204,11 @@ const selectedLog = ref<AICallLogSummary | null>(null)
 
 // 计算属性
 const uniqueOperations = computed(() => {
-  return [...new Set(logs.value.map(log => log.operationType))]
+  return [...new Set(logs.value.map((log:AICallLogSummary) => log.operationType))]
 })
 
 const uniqueModels = computed(() => {
-  return [...new Set(logs.value.map(log => log.modelName))]
+  return [...new Set(logs.value.map((log:AICallLogSummary) => log.modelName))]
 })
 
 const filteredLogs = computed(() => {
@@ -217,7 +217,7 @@ const filteredLogs = computed(() => {
   // 搜索过滤
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
-    filtered = filtered.filter(log =>
+    filtered = filtered.filter((log:AICallLogSummary) =>
       log.callId.toLowerCase().includes(query) ||
       log.operationType.toLowerCase().includes(query) ||
       log.modelName.toLowerCase().includes(query) ||
@@ -227,21 +227,21 @@ const filteredLogs = computed(() => {
 
   // 操作类型过滤
   if (filterOperation.value) {
-    filtered = filtered.filter(log => log.operationType === filterOperation.value)
+    filtered = filtered.filter((log:AICallLogSummary) => log.operationType === filterOperation.value)
   }
 
   // 模型过滤
   if (filterModel.value) {
-    filtered = filtered.filter(log => log.modelName === filterModel.value)
+    filtered = filtered.filter((log:AICallLogSummary) => log.modelName === filterModel.value)
   }
 
   // 状态过滤
   if (filterStatus.value) {
-    filtered = filtered.filter(log => log.status === filterStatus.value)
+    filtered = filtered.filter((log:AICallLogSummary) => log.status === filterStatus.value)
   }
 
   // 按时间倒序排列
-  return filtered.sort((a, b) => new Date(b.callTime).getTime() - new Date(a.callTime).getTime())
+  return filtered.sort((a:AICallLogSummary, b:AICallLogSummary) => new Date(b.callTime).getTime() - new Date(a.callTime).getTime())
 })
 
 const totalPages = computed(() => {

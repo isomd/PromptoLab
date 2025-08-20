@@ -327,7 +327,7 @@
 import { onMounted, onUnmounted } from 'vue'
 
 // 动态背景效果
-let animationId: number
+let animationId: number = 0
 
 const initBackgroundAnimation = () => {
   const particles = document.querySelectorAll('.particle')

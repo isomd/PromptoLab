@@ -1,8 +1,11 @@
+import type { property } from "lodash-es"
+
 export interface SystemOverview {
   totalModels: number
   enabledModels: number
   totalOperations: number
   enabledOperations: number
+  [property: string]: number
 }
 
 export interface ApiResponse<T = unknown> {
