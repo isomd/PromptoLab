@@ -4,7 +4,7 @@ public class QFormPrompt {
 
     public final static String Q_FROM_PROMPT =
             """
-                    ## 表单形式提示词
+                    ## 表单形式的题目
 
                     ### 描述
 

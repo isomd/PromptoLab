@@ -4,7 +4,7 @@ public class QuestionPrompt {
 
     public final static String QUESTION_PROMPT =
             """
-                    ## 问答形式提示词
+                    ## 问答形式的题目
 
                     ### 描述
 
