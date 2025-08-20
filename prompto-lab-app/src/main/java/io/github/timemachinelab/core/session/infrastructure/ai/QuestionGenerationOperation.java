@@ -5,6 +5,7 @@ import io.github.timemachinelab.core.question.QuestionParser;
 import io.github.timemachinelab.core.question.QuestionParseException;
 import io.github.timemachinelab.sfchain.annotation.AIOp;
 import io.github.timemachinelab.sfchain.core.BaseAIOperation;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Component;
 )
 @Component
 @Slf4j
-public class QuestionGenerationOperation extends BaseAIOperation<QuestionGenerationOperation.QuestionGenerationRequest, BaseQuestion> {
+public class QuestionGenerationOperation extends BaseAIOperation<QuestionGenerationOperation.QuestionGenerationRequest, QuestionGenerationOperation.QuestionGenerationResponse> {
 
     @Override
     public String buildPrompt(QuestionGenerationRequest input) {
@@ -41,10 +42,10 @@ public class QuestionGenerationOperation extends BaseAIOperation<QuestionGenerat
     }
 
     @Override
-    protected BaseQuestion parseResult(String jsonContent, QuestionGenerationRequest input) {
+    protected QuestionGenerationOperation.QuestionGenerationResponse parseResult(String jsonContent, QuestionGenerationRequest input) {
         try {
             // 使用QuestionParser解析AI返回的JSON
-            BaseQuestion question = QuestionParser.parseQuestion(jsonContent);
+            QuestionGenerationResponse question = QuestionParser.parseQuestion(jsonContent);
             log.info("成功生成问题，类型: {}", question.getClass().getSimpleName());
             return question;
             
@@ -89,5 +90,12 @@ public class QuestionGenerationOperation extends BaseAIOperation<QuestionGenerat
             this.conversationTree = conversationTree;
             this.userInput = userInput;
         }
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class QuestionGenerationResponse {
+        private BaseQuestion question;
+        private String parentId;
     }
 }

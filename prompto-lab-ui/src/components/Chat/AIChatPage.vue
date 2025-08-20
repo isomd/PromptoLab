@@ -9,7 +9,7 @@
         <div class="particle" v-for="i in 15" :key="i"></div>
       </div>
     </div>
-    
+
     <!-- 左侧栏 -->
     <div class="left-sidebar">
       <div class="sidebar-content">
@@ -33,19 +33,19 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 中间对话主页面 -->
     <div class="main-content" :style="{ width: mainContentWidth + 'px' }">
-      <ChatMain 
+      <ChatMain
         :messages="currentBranchMessages"
         :is-loading="isLoading"
         :streaming-node-id="streamingNodeId"
         @send-message="handleSendMessage"
       />
     </div>
-    
+
     <!-- 可拖拽的分隔条 -->
-    <div 
+    <div
       class="resizer"
       @mousedown="startResize"
       @touchstart="startResize"
@@ -59,10 +59,10 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 右侧思维导图 -->
     <div class="right-sidebar" :style="{ width: rightSidebarWidth + 'px' }">
-      <MindMapTree 
+      <MindMapTree
         :conversation-tree="conversationTree"
         :current-node-id="currentNodeId"
         @node-selected="handleNodeSelected"
@@ -132,23 +132,23 @@ const isLoading = ref(false)
 // 初始化会话
 const initializeSession = async () => {
   if (isInitializing.value) return
-  
+
   isInitializing.value = true
-  
+
   try {
     // 创建新会话
     const userId = 'demo-user-' + Date.now() // 临时用户ID
     session.value = await startConversation(userId)
-    
+
     // 建立SSE连接
     eventSource.value = connectSSE(
       session.value.sessionId,
       handleSSEMessage,
       handleSSEError
     )
-    
+
     isConnected.value = true
-    
+
     // 初始化根节点
     const rootNode: ConversationNode = {
       id: 'root',
@@ -158,16 +158,16 @@ const initializeSession = async () => {
       children: [],
       isActive: true
     }
-    
+
     conversationTree.value.set('root', rootNode)
     currentNodeId.value = 'root'
-    
+
     toast.success({
       title: '会话已建立',
       message: '已成功连接到AI助手',
       duration: 2000
     })
-    
+
   } catch (error: any) {
     console.error('初始化会话失败:', error)
     toast.error({
@@ -183,7 +183,7 @@ const initializeSession = async () => {
 // 处理SSE消息
 const handleSSEMessage = (response: MessageResponse) => {
   console.log('收到SSE消息:', response)
-  
+
   switch (response.type) {
     case 'AI_QUESTION':
     case 'AI_ANSWER':
@@ -209,7 +209,7 @@ const handleSSEMessage = (response: MessageResponse) => {
 const startStreamingMessage = (nodeId: string) => {
   streamingNodeId.value = nodeId
   streamingContent.value = ''
-  
+
   const aiNode: ConversationNode = {
     id: nodeId,
     content: '',
@@ -219,12 +219,12 @@ const startStreamingMessage = (nodeId: string) => {
     children: [],
     isActive: true
   }
-  
+
   const currentNode = conversationTree.value.get(currentNodeId.value)
   if (currentNode) {
     currentNode.children.push(nodeId)
   }
-  
+
   conversationTree.value.set(nodeId, aiNode)
   currentNodeId.value = nodeId
   isLoading.value = false
@@ -234,7 +234,7 @@ const startStreamingMessage = (nodeId: string) => {
 const appendStreamingContent = (nodeId: string, chunk: string) => {
   if (streamingNodeId.value === nodeId) {
     streamingContent.value += chunk
-    
+
     // 更新节点内容
     const node = conversationTree.value.get(nodeId)
     if (node) {
@@ -255,17 +255,17 @@ const finishStreamingMessage = (nodeId: string) => {
 const handleSSEError = (error: Event) => {
   console.error('SSE连接错误:', error)
   isConnected.value = false
-  
+
   toast.error({
     title: '连接中断',
     message: '与AI助手的连接已中断，正在尝试重连...',
     duration: 3000
   })
-  
+
   // 尝试重连
   setTimeout(() => {
     if (session.value && !isConnected.value) {
-      eventSource.value = connectSSE(
+      eventSource.value = connectUserInteractionSSE(
         session.value.sessionId,
         handleSSEMessage,
         handleSSEError
@@ -291,12 +291,12 @@ const addAIMessage = (nodeId: string, content: string, isStreaming = false) => {
     children: [],
     isActive: true
   }
-  
+
   const currentNode = conversationTree.value.get(currentNodeId.value)
   if (currentNode) {
     currentNode.children.push(nodeId)
   }
-  
+
   conversationTree.value.set(nodeId, aiNode)
   currentNodeId.value = nodeId
   isLoading.value = false
@@ -313,23 +313,23 @@ const addAISelectionMessage = (nodeId: string, content: string, options: string[
 const currentBranchMessages = computed(() => {
   const messages: Message[] = []
   const visited = new Set<string>()
-  
+
   const buildPath = (nodeId: string): string[] => {
     const path: string[] = []
     let current = nodeId
-    
+
     while (current && !visited.has(current)) {
       visited.add(current)
       path.unshift(current)
       const node = conversationTree.value.get(current)
       current = node?.parentId || ''
     }
-    
+
     return path
   }
-  
+
   const path = buildPath(currentNodeId.value)
-  
+
   path.forEach(nodeId => {
     const node = conversationTree.value.get(nodeId)
     if (node) {
@@ -341,56 +341,56 @@ const currentBranchMessages = computed(() => {
       })
     }
   })
-  
+
   return messages
 })
 
 // 拖拽开始
 const startResize = (event: MouseEvent | TouchEvent) => {
   isResizing.value = true
-  
+
   const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
   startX.value = clientX
   startRightWidth.value = rightSidebarWidth.value
-  
+
   document.addEventListener('mousemove', handleResize)
   document.addEventListener('mouseup', stopResize)
   document.addEventListener('touchmove', handleResize)
   document.addEventListener('touchend', stopResize)
-  
+
   // 防止文本选择
   document.body.style.userSelect = 'none'
   document.body.style.cursor = 'col-resize'
-  
+
   event.preventDefault()
 }
 
 // 拖拽过程中
 const handleResize = (event: MouseEvent | TouchEvent) => {
   if (!isResizing.value) return
-  
+
   const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
   const deltaX = startX.value - clientX // 注意方向：向左拖拽为正值
   const newWidth = startRightWidth.value + deltaX
-  
+
   // 限制在最小和最大宽度之间
   rightSidebarWidth.value = Math.max(
     minRightSidebarWidth,
     Math.min(maxRightSidebarWidth, newWidth)
   )
-  
+
   event.preventDefault()
 }
 
 // 拖拽结束
 const stopResize = () => {
   isResizing.value = false
-  
+
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
   document.removeEventListener('touchmove', handleResize)
   document.removeEventListener('touchend', stopResize)
-  
+
   document.body.style.userSelect = ''
   document.body.style.cursor = ''
 }
@@ -413,7 +413,7 @@ onUnmounted(() => {
     closeSSE(eventSource.value)
     eventSource.value = null
   }
-  
+
   window.removeEventListener('resize', updateContainerWidth)
   stopResize() // 确保清理事件监听器
 })
@@ -428,7 +428,7 @@ const handleSendMessage = async (content: string) => {
     })
     return
   }
-  
+
   const userNodeId = `user_${Date.now()}`
   const userNode: ConversationNode = {
     id: userNodeId,
@@ -439,7 +439,7 @@ const handleSendMessage = async (content: string) => {
     children: [],
     isActive: true
   }
-  
+
   const currentNode = conversationTree.value.get(currentNodeId.value)
   if (currentNode) {
     // 将当前节点的其他子节点设为非活跃状态
@@ -449,38 +449,47 @@ const handleSendMessage = async (content: string) => {
         setNodeAndDescendantsInactive(childId)
       }
     })
-    
+
     currentNode.children.push(userNodeId)
   }
-  
+
   conversationTree.value.set(userNodeId, userNode)
   currentNodeId.value = userNodeId
-  
+
   isLoading.value = true
-  
+
   try {
-    // 发送消息到后端
-    const messageRequest: MessageRequest = {
-      sessionId: session.value.sessionId,
-      content,
-      type: 'USER_TEXT'
-    }
-    
-    await sendMessage(messageRequest)
-    
+    // 使用统一答案请求格式调用您的/message接口
+    const userId = 'user_' + Date.now() // 临时用户ID，实际应用中应从认证系统获取
+
+    // 按照您的要求，直接设为null
+    const sessionId = null
+    const nodeId = null
+
+    const answerRequest = createAnswerRequest.input(
+      sessionId,
+      nodeId,
+      userId,
+      content.trim()
+    )
+
+    console.log('发送答案请求:', answerRequest)
+
+    await sendAnswer(answerRequest)
+
     // 消息发送成功，等待SSE返回AI回复
-    console.log('消息已发送，等待AI回复...')
-    
+    console.log('消息已发送到/message接口，等待AI回复...')
+
   } catch (error: any) {
     console.error('发送消息失败:', error)
     isLoading.value = false
-    
+
     toast.error({
       title: '发送失败',
       message: error.message || '消息发送失败，请重试',
       duration: 4000
     })
-    
+
     // 发送失败时移除用户消息节点
     conversationTree.value.delete(userNodeId)
     if (currentNode) {
@@ -510,7 +519,7 @@ const handleNodeSelected = (nodeId: string) => {
     conversationTree.value.forEach(node => {
       node.isActive = false
     })
-    
+
     const activatePath = (currentNodeId: string) => {
       const node = conversationTree.value.get(currentNodeId)
       if (node) {
@@ -520,7 +529,7 @@ const handleNodeSelected = (nodeId: string) => {
         }
       }
     }
-    
+
     activatePath(nodeId)
     currentNodeId.value = nodeId
   }
@@ -533,20 +542,20 @@ const handleBranchDeleted = (nodeId: string) => {
       node.children.forEach(childId => {
         deleteNodeAndDescendants(childId)
       })
-      
+
       if (node.parentId) {
         const parentNode = conversationTree.value.get(node.parentId)
         if (parentNode) {
           parentNode.children = parentNode.children.filter(childId => childId !== id)
         }
       }
-      
+
       conversationTree.value.delete(id)
     }
   }
-  
+
   deleteNodeAndDescendants(nodeId)
-  
+
   if (!conversationTree.value.has(currentNodeId.value)) {
     let newCurrentId = 'root'
     conversationTree.value.forEach((node, id) => {
@@ -677,7 +686,7 @@ const handleBranchDeleted = (nodeId: string) => {
   flex-shrink: 0;
   position: relative;
   z-index: 2;
-  box-shadow: 
+  box-shadow:
     inset -1px 0 0 rgba(212, 175, 55, 0.1),
     0 0 32px rgba(0, 0, 0, 0.3);
 }
@@ -699,7 +708,7 @@ const handleBranchDeleted = (nodeId: string) => {
   border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: 12px;
   backdrop-filter: blur(10px);
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
@@ -712,7 +721,7 @@ const handleBranchDeleted = (nodeId: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgba(212, 175, 55, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
@@ -782,7 +791,7 @@ const handleBranchDeleted = (nodeId: string) => {
   border-left: 1px solid rgba(212, 175, 55, 0.15);
   position: relative;
   z-index: 2;
-  box-shadow: 
+  box-shadow:
     inset 1px 0 0 rgba(212, 175, 55, 0.1),
     0 0 32px rgba(0, 0, 0, 0.3);
 }
@@ -803,11 +812,11 @@ const handleBranchDeleted = (nodeId: string) => {
   .left-sidebar {
     width: 220px; /* 在较小屏幕上适当减少 */
   }
-  
+
   .right-sidebar {
     min-width: 450px;
   }
-  
+
   .main-content {
     min-width: 350px;
   }
@@ -817,7 +826,7 @@ const handleBranchDeleted = (nodeId: string) => {
   .left-sidebar {
     width: 200px; /* 更小的屏幕进一步调整 */
   }
-  
+
   .right-sidebar {
     min-width: 400px;
   }
@@ -893,7 +902,7 @@ const handleBranchDeleted = (nodeId: string) => {
 
 .resizer:hover {
   background: linear-gradient(180deg, rgba(212, 175, 55, 0.3), rgba(212, 175, 55, 0.6), rgba(212, 175, 55, 0.3));
-  box-shadow: 
+  box-shadow:
     0 0 20px rgba(212, 175, 55, 0.4),
     inset 0 0 20px rgba(212, 175, 55, 0.2);
   border-color: rgba(212, 175, 55, 0.5);
@@ -926,7 +935,7 @@ const handleBranchDeleted = (nodeId: string) => {
   opacity: 0;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(10px);
-  box-shadow: 
+  box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
@@ -935,7 +944,7 @@ const handleBranchDeleted = (nodeId: string) => {
   opacity: 1;
   transform: scale(1.05);
   border-color: rgba(212, 175, 55, 0.6);
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.4),
     0 0 20px rgba(212, 175, 55, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -972,7 +981,7 @@ const handleBranchDeleted = (nodeId: string) => {
   border-left: 1px solid rgba(212, 175, 55, 0.15);
   position: relative;
   z-index: 2;
-  box-shadow: 
+  box-shadow:
     inset 1px 0 0 rgba(212, 175, 55, 0.1),
     0 0 32px rgba(0, 0, 0, 0.3);
 }
@@ -988,7 +997,7 @@ body.resizing {
   .left-sidebar {
     width: 200px;
   }
-  
+
   .sidebar-content {
     padding: 24px 16px;
   }
@@ -998,23 +1007,23 @@ body.resizing {
   .ai-chat-page {
     flex-direction: column;
   }
-  
+
   .left-sidebar,
   .right-sidebar {
     width: 100% !important;
     height: 200px;
   }
-  
+
   .main-content {
     width: 100% !important;
     flex: 1;
     min-height: 400px;
   }
-  
+
   .resizer {
     display: none;
   }
-  
+
   .dynamic-background {
     display: none;
   }
@@ -1025,17 +1034,17 @@ body.resizing {
     padding: 16px 12px;
     gap: 20px;
   }
-  
+
   .sidebar-header {
     padding: 16px;
     gap: 12px;
   }
-  
+
   .icon-wrapper {
     width: 40px;
     height: 40px;
   }
-  
+
   .icon {
     font-size: 20px;
   }

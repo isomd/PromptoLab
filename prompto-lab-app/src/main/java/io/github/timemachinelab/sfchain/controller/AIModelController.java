@@ -92,18 +92,18 @@ public class AIModelController {
         Map<String, Object> result = new HashMap<>();
         String modelName = config.getModelName();
         try {
-            // 检查模型是否已存在
-            Map<String, ModelConfigData> existingModels = persistenceManager.getAllModelConfigs();
-            boolean modelExists = existingModels.containsKey(modelName);
-            
-            // 验证模型配置（临时验证，不影响现有模型）
-            boolean validationResult = validateModelConfig(modelName, config, true);
+            // 验证模型配置
+            boolean validationResult = validateModelConfig(modelName, config);
             
             if (!validationResult) {
                 result.put("success", false);
                 result.put("message", "模型验证失败，请检查配置参数");
                 return ResponseEntity.badRequest().body(result);
             }
+            
+            // 检查模型是否已存在
+            Map<String, ModelConfigData> existingModels = persistenceManager.getAllModelConfigs();
+            boolean modelExists = existingModels.containsKey(modelName);
             
             // 根据模型是否存在选择添加或更新
             if (modelExists) {
@@ -132,11 +132,30 @@ public class AIModelController {
     }
     
     /**
+     * 删除模型配置
+     */
+    @DeleteMapping("/{modelName}")
+    public ResponseEntity<Map<String, Object>> deleteModel(@PathVariable String modelName) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            persistenceManager.deleteModelConfig(modelName);
+            result.put("success", true);
+            result.put("message", "模型配置删除成功");
+            result.put("modelName", modelName);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("删除模型配置失败: {} - {}", modelName, e.getMessage());
+            result.put("success", false);
+            result.put("message", "删除失败: " + e.getMessage());
+            return ResponseEntity.badRequest().body(result);
+        }
+    }
+    
+    /**
      * 测试模型连接
      */
-    @PostMapping("/test")
-    public ResponseEntity<Map<String, Object>> testModel(@RequestBody Map<String, String> request) {
-        String modelName = request.get("modelName");
+    @PostMapping("/{modelName}/test")
+    public ResponseEntity<Map<String, Object>> testModel(@PathVariable String modelName) {
         Map<String, Object> result = new HashMap<>();
         try {
             Map<String, ModelConfigData> models = persistenceManager.getAllModelConfigs();
@@ -148,8 +167,7 @@ public class AIModelController {
                 return ResponseEntity.notFound().build();
             }
             
-            // 测试已存在的模型，不需要临时注册
-            boolean testResult = validateModelConfig(modelName, config, false);
+            boolean testResult = validateModelConfig(modelName, config);
             result.put("success", testResult);
             result.put("message", testResult ? "模型连接测试成功" : "模型连接测试失败");
             result.put("modelName", modelName);
@@ -167,14 +185,11 @@ public class AIModelController {
     
     /**
      * 验证模型配置是否可用
-     * @param modelName 模型名称
-     * @param config 模型配置
-     * @param isTemporaryValidation 是否为临时验证（true: 验证后移除临时模型，false: 验证已存在的模型）
      */
-    private boolean validateModelConfig(String modelName, ModelConfigData config, boolean isTemporaryValidation) {
+    private boolean validateModelConfig(String modelName, ModelConfigData config) {
         boolean tempRegistered = false;
         try {
-            log.info("开始验证模型配置: {} (临时验证: {})", modelName, isTemporaryValidation);
+            log.info("开始验证模型配置: {}", modelName);
             
             ModelValidationOperation validationOp = (ModelValidationOperation) operationRegistry.getOperation(MODEL_VALIDATION_OP);
             if (validationOp == null) {
@@ -182,12 +197,9 @@ public class AIModelController {
                 return true;
             }
             
-            // 如果是临时验证，需要临时注册模型
-            if (isTemporaryValidation) {
-                OpenAIModelConfig tempConfig = convertToOpenAIConfig(config);
-                modelFactory.registerModel(tempConfig);
-                tempRegistered = true;
-            }
+            OpenAIModelConfig tempConfig = convertToOpenAIConfig(config);
+            modelFactory.registerModel(tempConfig);
+            tempRegistered = true;
             
             ModelValidationOperation.ValidationRequest request = 
                 new ModelValidationOperation.ValidationRequest("请回答：2+3等于几？");
@@ -200,36 +212,13 @@ public class AIModelController {
             log.error("模型验证失败: {} - {}", modelName, e.getMessage());
             return false;
         } finally {
-            // 只有在临时验证时才清理临时模型
-            if (tempRegistered && isTemporaryValidation) {
+            if (tempRegistered) {
                 try {
                     modelFactory.removeModel(modelName);
-                    log.debug("已清理临时模型配置: {}", modelName);
                 } catch (Exception e) {
                     log.warn("清理临时模型配置失败: {}", e.getMessage());
                 }
             }
-        }
-    }
-
-    
-    /**
-     * 删除模型配置
-     */
-    @DeleteMapping("/{modelName}")
-    public ResponseEntity<Map<String, Object>> deleteModel(@PathVariable String modelName) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            persistenceManager.deleteModelConfig(modelName);
-            result.put("success", true);
-            result.put("message", "模型配置删除成功");
-            result.put("modelName", modelName);
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            log.error("删除模型配置失败: {} - {}", modelName, e.getMessage());
-            result.put("success", false);
-            result.put("message", "删除失败: " + e.getMessage());
-            return ResponseEntity.badRequest().body(result);
         }
     }
     

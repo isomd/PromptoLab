@@ -15,6 +15,7 @@ public class MessageResponse {
     public enum MessageType {
         USER_ANSWER,
         AI_QUESTION,
+        AI_SELECTION_QUESTION,
         AI_ANSWER,
         SYSTEM_INFO
     }
@@ -29,5 +30,13 @@ public class MessageResponse {
 
     public static MessageResponse aiAnswer(String nodeId, String content) {
         return new MessageResponse(nodeId, content, MessageType.AI_ANSWER, null, System.currentTimeMillis());
+    }
+    
+    public static MessageResponse aiSelectionQuestion(String nodeId, String content, String[] options) {
+        return new MessageResponse(nodeId, content, MessageType.AI_SELECTION_QUESTION, options, System.currentTimeMillis());
+    }
+    
+    public static MessageResponse systemInfo(String nodeId, String content) {
+        return new MessageResponse(nodeId, content, MessageType.SYSTEM_INFO, null, System.currentTimeMillis());
     }
 }
