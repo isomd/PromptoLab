@@ -248,10 +248,10 @@ const countItems = (obj: JsonValue): number => {
   if (obj === null || obj === undefined || typeof obj !== 'object') return 1
 
   if (Array.isArray(obj)) {
-    return obj.reduce((sum, item) => sum + countItems(item), 0)
+    return obj.reduce((sum:number, item) => sum + countItems(item), 0)
   }
 
-  return Object.values(obj as JsonObject).reduce((sum, value) => sum + countItems(value), 0)
+  return Object.values(obj as JsonObject).reduce((sum:number, value) => sum + countItems(value), 0)
 }
 
 // 事件处理

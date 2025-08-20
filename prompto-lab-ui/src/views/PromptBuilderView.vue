@@ -20,7 +20,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import AIChatPage from '@/components/AIChatPage.vue'
+import AIChatPage from '@/components/Chat/AIChatPage.vue'
 
 // 粒子动画样式
 const getParticleStyle = (index: number) => {

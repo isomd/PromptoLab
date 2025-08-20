@@ -2,7 +2,7 @@
 import { RouterView } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ref,onMounted,onUnmounted,computed } from 'vue'
-import AppHeader from '@/components/AppHeader.vue'
+import AppHeader from '@/components/layout/AppHeader.vue'
 
 const route = useRoute()
 const appRef = ref<HTMLDivElement>()

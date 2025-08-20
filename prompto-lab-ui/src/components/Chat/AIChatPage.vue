@@ -39,6 +39,7 @@
       <ChatMain 
         :messages="currentBranchMessages"
         :is-loading="isLoading"
+        :streaming-node-id="streamingNodeId"
         @send-message="handleSendMessage"
       />
     </div>
@@ -113,6 +114,10 @@ const isResizing = ref(false)
 const startX = ref(0)
 const startRightWidth = ref(0)
 
+// 添加流式消息状态管理
+const streamingNodeId = ref<string>('')
+const streamingContent = ref<string>('')
+
 // 会话状态
 const session = ref<ConversationSession | null>(null)
 const eventSource = ref<EventSource | null>(null)
@@ -179,28 +184,70 @@ const initializeSession = async () => {
 const handleSSEMessage = (response: MessageResponse) => {
   console.log('收到SSE消息:', response)
   
-  // 根据消息类型处理
   switch (response.type) {
     case 'AI_QUESTION':
-    case 'AI_ANSWER':  // 添加对AI_ANSWER类型的处理
+    case 'AI_ANSWER':
       addAIMessage(response.nodeId, response.content)
       break
-    case 'AI_SELECTION_QUESTION':
-      addAISelectionMessage(response.nodeId, response.content, response.options || [])
+    case 'AI_STREAM_START':
+      // 开始流式响应
+      startStreamingMessage(response.nodeId)
       break
-    case 'USER_ANSWER':
-      // 用户消息确认，通常不需要特殊处理
+    case 'AI_STREAM_CHUNK':
+      // 接收流式内容片段
+      appendStreamingContent(response.nodeId, response.content)
       break
-    case 'SYSTEM_INFO':
-      toast.info({
-        title: '系统消息',
-        message: response.content,
-        duration: 3000
-      })
+    case 'AI_STREAM_END':
+      // 结束流式响应
+      finishStreamingMessage(response.nodeId)
       break
-    default:
-      console.warn('未知的消息类型:', response.type, response)
-      break
+    // ... 其他case保持不变
+  }
+}
+
+// 开始流式消息
+const startStreamingMessage = (nodeId: string) => {
+  streamingNodeId.value = nodeId
+  streamingContent.value = ''
+  
+  const aiNode: ConversationNode = {
+    id: nodeId,
+    content: '',
+    type: 'assistant',
+    timestamp: new Date(),
+    parentId: currentNodeId.value,
+    children: [],
+    isActive: true
+  }
+  
+  const currentNode = conversationTree.value.get(currentNodeId.value)
+  if (currentNode) {
+    currentNode.children.push(nodeId)
+  }
+  
+  conversationTree.value.set(nodeId, aiNode)
+  currentNodeId.value = nodeId
+  isLoading.value = false
+}
+
+// 追加流式内容
+const appendStreamingContent = (nodeId: string, chunk: string) => {
+  if (streamingNodeId.value === nodeId) {
+    streamingContent.value += chunk
+    
+    // 更新节点内容
+    const node = conversationTree.value.get(nodeId)
+    if (node) {
+      node.content = streamingContent.value
+    }
+  }
+}
+
+// 完成流式消息
+const finishStreamingMessage = (nodeId: string) => {
+  if (streamingNodeId.value === nodeId) {
+    streamingNodeId.value = ''
+    streamingContent.value = ''
   }
 }
 
@@ -228,7 +275,13 @@ const handleSSEError = (error: Event) => {
 }
 
 // 添加AI消息到对话树
-const addAIMessage = (nodeId: string, content: string) => {
+const addAIMessage = (nodeId: string, content: string, isStreaming = false) => {
+  const existingNode = conversationTree.value.get(nodeId)
+  if (existingNode && isStreaming) {
+    // 如果是流式更新，只更新内容
+    existingNode.content = content
+    return
+  }
   const aiNode: ConversationNode = {
     id: nodeId,
     content,

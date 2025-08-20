@@ -116,7 +116,7 @@ const emit = defineEmits<Emits>()
 const visible = ref(false)
 const progressWidth = ref(100)
 const isPaused = ref(false)
-let timer: NodeJS.Timeout | null = null
+let timer: number | null = null
 let startTime: number = 0
 let remainingTime: number = 0
 

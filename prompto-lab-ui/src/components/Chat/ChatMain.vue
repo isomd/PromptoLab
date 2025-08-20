@@ -6,7 +6,7 @@
         <div class="bg-particle" v-for="i in 8" :key="i"></div>
       </div>
     </div>
-    
+
     <div class="chat-header">
       <div class="header-content">
         <div class="header-icon">
@@ -30,80 +30,30 @@
         </button>
       </div>
     </div>
-    
+
     <div class="chat-messages" ref="messagesContainer">
-      <div 
-        v-for="message in messages" 
-        :key="message.id"
-        class="message"
-        :class="message.type"
-      >
-        <div class="message-avatar">
-          <div class="avatar-wrapper" :class="message.type">
-            <div class="avatar-glow"></div>
-            <span class="avatar-icon">
-              {{ message.type === 'user' ? '👤' : '🤖' }}
-            </span>
-          </div>
-        </div>
-        <div class="message-content">
-          <div class="message-bubble" :class="message.type">
-            <div class="bubble-glow"></div>
-            <div class="message-text">{{ message.content }}</div>
-            <div class="message-time">{{ formatTime(message.timestamp) }}</div>
-          </div>
-        </div>
-      </div>
-      
-      <div v-if="isLoading" class="message assistant">
-        <div class="message-avatar">
-          <div class="avatar-wrapper assistant">
-            <div class="avatar-glow"></div>
-            <span class="avatar-icon">🤖</span>
-          </div>
-        </div>
-        <div class="message-content">
-          <div class="message-bubble assistant">
-            <div class="bubble-glow"></div>
-            <div class="typing-indicator">
-              <div class="typing-dots">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-              <div class="typing-text">AI正在思考...</div>
+      <MessageItem v-for="message in messages" :key="message.id" :message="message"
+        :is-streaming="isMessageStreaming(message.id)" />
+      <DynamicSelect :fieldConfig="fieldConfig" :modelValue="val" :isDark="true" @change="change"/>
+      <DynamicSelect :fieldConfig="fieldConfig2" :modelValue="val2" :isDark="true" @change="change"/>
+
+      <div class="chat-input">
+        <div class="input-container">
+          <div class="input-wrapper">
+            <div class="input-glow"></div>
+            <input v-model="inputMessage" @keydown="handleKeydown" placeholder="输入您的问题，让AI为您解答..." rows="1"
+              ref="textareaRef" class="message-input"></input>
+            <div class="input-actions">
+              <button class="attachment-btn" title="附件">
+                <span>📎</span>
+              </button>
+              <button @click="sendMessage" :disabled="!inputMessage.trim() || isLoading" class="send-button"
+                :class="{ active: inputMessage.trim() && !isLoading }">
+                <div class="btn-glow"></div>
+                <span class="btn-icon">⚡</span>
+                <span class="btn-text">发送</span>
+              </button>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="chat-input">
-      <div class="input-container">
-        <div class="input-wrapper">
-          <div class="input-glow"></div>
-          <input 
-            v-model="inputMessage"
-            @keydown="handleKeydown"
-            placeholder="输入您的问题，让AI为您解答..."
-            rows="1"
-            ref="textareaRef"
-            class="message-input"
-          ></input>
-          <div class="input-actions">
-            <button class="attachment-btn" title="附件">
-              <span>📎</span>
-            </button>
-            <button 
-              @click="sendMessage"
-              :disabled="!inputMessage.trim() || isLoading"
-              class="send-button"
-              :class="{ active: inputMessage.trim() && !isLoading }"
-            >
-              <div class="btn-glow"></div>
-              <span class="btn-icon">⚡</span>
-              <span class="btn-text">发送</span>
-            </button>
           </div>
         </div>
       </div>
@@ -113,7 +63,85 @@
 
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue'
-
+import DynamicSelect from './DynamicSelect.vue'
+import MessageItem from './MessageItem.vue'
+const fieldConfig = ref<any>({
+  "id": "question1",
+  "type": "radio",
+  "title": "您的年龄段是？",
+  "description": "请选择您的年龄段",
+  "options": [
+    { "value": "18-25", "label": "18-25岁", "weight": 1 },
+    { "value": "26-35", "label": "26-35岁", "weight": 2 },
+    { "value": "36-45", "label": "36-45岁", "weight": 3 }
+  ],
+  "allowOther": true,
+  "required": true,
+  "validation": {
+    "rules": [
+      { "type": "required", "message": "请选择一个选项" }
+    ]
+  }
+})
+const fieldConfig2 = ref<any>({
+  "id": "interests",
+  "type": "checkbox",
+  "title": "您对哪些技术领域感兴趣？",
+  "description": "请选择您感兴趣的技术领域（可多选）",
+  "options": [
+    {
+      "value": "frontend",
+      "label": "前端开发",
+      "description": "HTML、CSS、JavaScript、Vue、React等",
+      "weight": 5
+    },
+    {
+      "value": "backend",
+      "label": "后端开发",
+      "description": "Node.js、Python、Java、数据库等",
+      "weight": 4
+    },
+    {
+      "value": "mobile",
+      "label": "移动开发",
+      "description": "iOS、Android、React Native、Flutter等",
+      "weight": 3
+    },
+    {
+      "value": "ai",
+      "label": "人工智能",
+      "description": "机器学习、深度学习、自然语言处理等",
+      "weight": 5
+    },
+    {
+      "value": "devops",
+      "label": "DevOps",
+      "description": "CI/CD、Docker、Kubernetes、云服务等",
+      "weight": 2
+    }
+  ],
+  "allowOther": true,
+  "otherPlaceholder": "请输入其他感兴趣的技术领域...",
+  "required": true,
+  "validation": {
+    "rules": [
+      {
+        "type": "required",
+        "message": "请至少选择一个技术领域"
+      },
+      {
+        "type": "custom",
+        "message": "最多只能选择4个选项",
+        "validator": (value:[]) => Array.isArray(value) && value.length <= 4
+      }
+    ]
+  }
+})
+const change = (e)=>{
+  alert(e)
+}
+const val = ref('')
+const val2 = ref('')
 interface Message {
   id: string
   content: string
@@ -124,6 +152,7 @@ interface Message {
 interface Props {
   messages: Message[]
   isLoading?: boolean
+  streamingNodeId?: string
 }
 
 const props = defineProps<Props>()
@@ -135,12 +164,17 @@ const inputMessage = ref('')
 const messagesContainer = ref<HTMLElement>()
 const textareaRef = ref<HTMLTextAreaElement>()
 
+// 判断消息是否正在流式输出
+const isMessageStreaming = (messageId: string) => {
+  return props.streamingNodeId === messageId
+}
+
 const sendMessage = () => {
   if (!inputMessage.value.trim() || props.isLoading) return
-  
+
   emit('sendMessage', inputMessage.value.trim())
   inputMessage.value = ''
-  
+
   // 重置textarea高度
   if (textareaRef.value) {
     textareaRef.value.style.height = 'auto'
@@ -152,20 +186,13 @@ const handleKeydown = (event: KeyboardEvent) => {
     event.preventDefault()
     sendMessage()
   }
-  
+
   // 自动调整textarea高度
   nextTick(() => {
     if (textareaRef.value) {
       textareaRef.value.style.height = 'auto'
       textareaRef.value.style.height = textareaRef.value.scrollHeight + 'px'
     }
-  })
-}
-
-const formatTime = (timestamp: Date) => {
-  return timestamp.toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit'
   })
 }
 
@@ -216,20 +243,78 @@ watch(() => props.messages.length, () => {
   animation: bg-float 12s ease-in-out infinite;
 }
 
-.bg-particle:nth-child(1) { width: 4px; height: 4px; top: 20%; left: 10%; animation-delay: 0s; }
-.bg-particle:nth-child(2) { width: 6px; height: 6px; top: 60%; left: 20%; animation-delay: -2s; }
-.bg-particle:nth-child(3) { width: 3px; height: 3px; top: 40%; right: 15%; animation-delay: -4s; }
-.bg-particle:nth-child(4) { width: 5px; height: 5px; bottom: 30%; left: 30%; animation-delay: -6s; }
-.bg-particle:nth-child(5) { width: 4px; height: 4px; top: 80%; right: 25%; animation-delay: -8s; }
-.bg-particle:nth-child(6) { width: 7px; height: 7px; top: 10%; right: 40%; animation-delay: -10s; }
-.bg-particle:nth-child(7) { width: 3px; height: 3px; bottom: 60%; right: 10%; animation-delay: -12s; }
-.bg-particle:nth-child(8) { width: 5px; height: 5px; bottom: 20%; left: 60%; animation-delay: -14s; }
+.bg-particle:nth-child(1) {
+  width: 4px;
+  height: 4px;
+  top: 20%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.bg-particle:nth-child(2) {
+  width: 6px;
+  height: 6px;
+  top: 60%;
+  left: 20%;
+  animation-delay: -2s;
+}
+
+.bg-particle:nth-child(3) {
+  width: 3px;
+  height: 3px;
+  top: 40%;
+  right: 15%;
+  animation-delay: -4s;
+}
+
+.bg-particle:nth-child(4) {
+  width: 5px;
+  height: 5px;
+  bottom: 30%;
+  left: 30%;
+  animation-delay: -6s;
+}
+
+.bg-particle:nth-child(5) {
+  width: 4px;
+  height: 4px;
+  top: 80%;
+  right: 25%;
+  animation-delay: -8s;
+}
+
+.bg-particle:nth-child(6) {
+  width: 7px;
+  height: 7px;
+  top: 10%;
+  right: 40%;
+  animation-delay: -10s;
+}
+
+.bg-particle:nth-child(7) {
+  width: 3px;
+  height: 3px;
+  bottom: 60%;
+  right: 10%;
+  animation-delay: -12s;
+}
+
+.bg-particle:nth-child(8) {
+  width: 5px;
+  height: 5px;
+  bottom: 20%;
+  left: 60%;
+  animation-delay: -14s;
+}
 
 @keyframes bg-float {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0) rotate(0deg);
     opacity: 0.1;
   }
+
   50% {
     transform: translateY(-20px) rotate(180deg);
     opacity: 0.3;
@@ -247,7 +332,7 @@ watch(() => props.messages.length, () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 
+  box-shadow:
     0 1px 0 rgba(212, 175, 55, 0.1),
     0 8px 32px rgba(0, 0, 0, 0.3);
 }
@@ -267,7 +352,7 @@ watch(() => props.messages.length, () => {
   align-items: center;
   justify-content: center;
   position: relative;
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgba(212, 175, 55, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
@@ -285,8 +370,17 @@ watch(() => props.messages.length, () => {
 }
 
 @keyframes icon-pulse {
-  0%, 100% { opacity: 0.6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.05); }
+
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
 }
 
 .icon {
@@ -326,8 +420,15 @@ watch(() => props.messages.length, () => {
 }
 
 @keyframes status-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .status-indicator span {
@@ -372,7 +473,6 @@ watch(() => props.messages.length, () => {
   z-index: 2;
   scroll-behavior: smooth;
 }
-
 .message {
   margin-bottom: 32px;
   display: flex;
@@ -385,6 +485,7 @@ watch(() => props.messages.length, () => {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -440,8 +541,17 @@ watch(() => props.messages.length, () => {
 }
 
 @keyframes avatar-glow {
-  0%, 100% { opacity: 0.6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.1); }
+
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
 }
 
 .avatar-icon {
@@ -510,6 +620,58 @@ watch(() => props.messages.length, () => {
   z-index: 2;
 }
 
+/* 流式输出样式 */
+.message-text.streaming {
+  position: relative;
+}
+
+.cursor-blink {
+  display: inline-block;
+  animation: blink 1s infinite;
+  color: #d4af37;
+  font-weight: bold;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 流式消息的特殊效果 */
+.message-text.streaming::after {
+  content: '';
+  position: absolute;
+  right: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  background: linear-gradient(45deg, #d4af37, #f4d03f);
+  border-radius: 2px;
+  animation: typing-indicator 1.5s ease-in-out infinite;
+}
+
+@keyframes typing-indicator {
+
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
 .message-time {
   font-size: 11px;
   opacity: 0.6;
@@ -544,15 +706,27 @@ watch(() => props.messages.length, () => {
   box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
 }
 
-.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
-.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
-.typing-dots span:nth-child(3) { animation-delay: 0s; }
+.typing-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0s;
+}
 
 @keyframes typing-bounce {
-  0%, 80%, 100% {
+
+  0%,
+  80%,
+  100% {
     transform: scale(0.8);
     opacity: 0.5;
   }
+
   40% {
     transform: scale(1.2);
     opacity: 1;
@@ -574,7 +748,7 @@ watch(() => props.messages.length, () => {
   border-top: 1px solid rgba(212, 175, 55, 0.15);
   position: relative;
   z-index: 2;
-  box-shadow: 
+  box-shadow:
     0 -1px 0 rgba(212, 175, 55, 0.1),
     0 -8px 32px rgba(0, 0, 0, 0.3);
 }
@@ -594,14 +768,14 @@ watch(() => props.messages.length, () => {
   position: relative;
   backdrop-filter: blur(20px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .input-wrapper:focus-within {
   border-color: rgba(212, 175, 55, 0.5);
-  box-shadow: 
+  box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(212, 175, 55, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -694,14 +868,14 @@ watch(() => props.messages.length, () => {
   background: linear-gradient(135deg, #d4af37, #f4d03f);
   border-color: #d4af37;
   color: #1a1a1a;
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgba(212, 175, 55, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .send-button.active:hover {
   transform: translateY(-2px);
-  box-shadow: 
+  box-shadow:
     0 12px 32px rgba(212, 175, 55, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
@@ -729,8 +903,15 @@ watch(() => props.messages.length, () => {
 }
 
 @keyframes btn-shimmer {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .btn-icon {
@@ -782,44 +963,44 @@ watch(() => props.messages.length, () => {
   .chat-header {
     padding: 16px 20px;
   }
-  
+
   .header-content {
     gap: 12px;
   }
-  
+
   .header-icon {
     width: 48px;
     height: 48px;
   }
-  
+
   .icon {
     font-size: 24px;
   }
-  
+
   .header-text h2 {
     font-size: 20px;
   }
-  
+
   .chat-messages {
     padding: 20px;
   }
-  
+
   .message {
     margin-bottom: 24px;
   }
-  
+
   .message-content {
     max-width: 85%;
   }
-  
+
   .chat-input {
     padding: 16px 20px 20px;
   }
-  
+
   .input-wrapper {
     padding: 12px 16px;
   }
-  
+
   .chat-background {
     display: none;
   }
@@ -829,20 +1010,20 @@ watch(() => props.messages.length, () => {
   .header-actions {
     display: none;
   }
-  
+
   .avatar-wrapper {
     width: 40px;
     height: 40px;
   }
-  
+
   .avatar-icon {
     font-size: 16px;
   }
-  
+
   .message-bubble {
     padding: 16px 20px;
   }
-  
+
   .message-content {
     max-width: 90%;
   }
