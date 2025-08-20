@@ -4,6 +4,7 @@ import io.github.timemachinelab.core.session.application.ConversationService;
 import io.github.timemachinelab.core.session.application.MessageProcessingService;
 import io.github.timemachinelab.core.session.application.SessionManagementService;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
+import io.github.timemachinelab.core.session.infrastructure.ai.QuestionGenerationOperation;
 import io.github.timemachinelab.core.session.infrastructure.web.dto.UnifiedAnswerRequest;
 import io.github.timemachinelab.core.session.infrastructure.web.dto.MessageResponse;
 import io.github.timemachinelab.entity.req.RetryRequest;
@@ -20,6 +21,7 @@ import javax.annotation.Resource;
 import javax.validation.Valid;
 import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -46,10 +48,13 @@ public class UserInteractionController {
     /**
      * 建立SSE连接
      */
-    @GetMapping(value = "/sse/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamConversation(@PathVariable String sessionId) {
+    @GetMapping(value = "/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamConversation(@RequestParam(required = false) String sessionId) {
         log.info("建立SSE连接 - 会话ID: {}", sessionId);
-        
+
+        if(sessionId == null || sessionId.isEmpty()) {
+            sessionId = UUID.randomUUID().toString();
+        }
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
         sseEmitters.put(sessionId, emitter);
         
@@ -63,19 +68,19 @@ public class UserInteractionController {
         }
         
         // 设置连接事件处理
+        String finalSessionId = sessionId;
         emitter.onCompletion(() -> {
-            log.info("SSE连接完成: {}", sessionId);
-            sseEmitters.remove(sessionId);
+            log.info("SSE连接完成: {}", finalSessionId);
         });
-        
+
         emitter.onTimeout(() -> {
-            log.info("SSE连接超时: {}", sessionId);
-            sseEmitters.remove(sessionId);
+            log.info("SSE连接超时: {}", finalSessionId);
+            sseEmitters.remove(finalSessionId);
         });
         
         emitter.onError((ex) -> {
-            log.error("SSE连接错误: {} - {}", sessionId, ex.getMessage());
-            sseEmitters.remove(sessionId);
+            log.error("SSE连接错误: {} - {}", finalSessionId, ex.getMessage());
+            sseEmitters.remove(finalSessionId);
         });
         
         return emitter;
@@ -171,14 +176,14 @@ public class UserInteractionController {
      * @param sessionId 会话ID
      * @param response 消息响应对象
      */
-    private void sendSseMessage(String sessionId, MessageResponse response) {
+    private void sendSseMessage(String sessionId, QuestionGenerationOperation.QuestionGenerationResponse response) {
         SseEmitter emitter = sseEmitters.get(sessionId);
         if (emitter != null) {
             try {
                 emitter.send(SseEmitter.event()
                     .name("message")
                     .data(response));
-                log.debug("SSE消息发送成功 - 会话: {}, 消息类型: {}", sessionId, response.getType());
+                log.info("SSE消息发送成功 - 会话: {}, 消息: {}", sessionId, response);
             } catch (IOException e) {
                 log.error("SSE消息发送失败 - 会话: {}, 错误: {}", sessionId, e.getMessage());
                 sseEmitters.remove(sessionId);

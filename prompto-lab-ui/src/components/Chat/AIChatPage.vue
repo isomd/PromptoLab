@@ -74,10 +74,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import QuestionRenderer from './QuestionRenderer.vue'
+import QuestionRenderer from '../QuestionRenderer.vue'
 import ChatTree from './ChatTree.vue'
 import MindMapTree from './MindMapTree.vue'
-import { startConversation, sendMessage, connectSSE, closeSSE, type MessageRequest, type MessageResponse, type ConversationSession } from '@/services/conversationApi'
+import { startConversation, sendMessage, sendUserMessage, connectSSE, closeSSE, processAnswer, connectUserInteractionSSE, type MessageRequest, type MessageResponse, type ConversationSession, type UnifiedAnswerRequest, type FormAnswerItem } from '@/services/conversationApi'
 import { toast } from '@/utils/toast'
 
 interface Message {
@@ -140,7 +140,7 @@ const initializeSession = async () => {
     session.value = await startConversation(userId)
 
     // 建立SSE连接
-    eventSource.value = connectSSE(
+    eventSource.value = connectUserInteractionSSE(
       session.value.sessionId,
       handleSSEMessage,
       handleSSEError
@@ -236,7 +236,7 @@ const handleSSEError = (error: Event) => {
   // 尝试重连
   setTimeout(() => {
     if (session.value && !isConnected.value) {
-      eventSource.value = connectSSE(
+      eventSource.value = connectUserInteractionSSE(
         session.value.sessionId,
         handleSSEMessage,
         handleSSEError
@@ -267,7 +267,6 @@ const addAIMessage = (nodeId: string, content: string) => {
   isLoading.value = false
 }
 
-// 添加AI选择题消息
 const addAISelectionMessage = (nodeId: string, content: string, options: string[]) => {
   // 暂时作为普通消息处理，后续可以扩展选择题UI
   const fullContent = content + '\n\n选项：\n' + options.map((opt, idx) => `${idx + 1}. ${opt}`).join('\n')
@@ -434,7 +433,7 @@ const handleSendMessage = async (content: string) => {
       type: 'USER_TEXT'
     }
 
-    await sendMessage(messageRequest)
+    await sendUserMessage(messageRequest)
 
     // 消息发送成功，等待SSE返回AI回复
     console.log('消息已发送，等待AI回复...')
@@ -462,10 +461,10 @@ const handleSendMessage = async (content: string) => {
 
 // 处理答案提交
 const handleSubmitAnswer = async (answerData: any) => {
-  if (!session.value || !isConnected.value || !currentQuestion.value) {
+  if (!session.value || !currentQuestion.value) {
     toast.error({
       title: '提交失败',
-      message: '会话状态异常，请重新开始',
+      message: '会话未建立或没有当前问题',
       duration: 3000
     })
     return
@@ -474,9 +473,23 @@ const handleSubmitAnswer = async (answerData: any) => {
   isLoading.value = true
 
   try {
-    // 构建答案消息
-    let answerContent = ''
+    // 构建统一答案请求
+    const request: UnifiedAnswerRequest = {
+      sessionId: session.value.sessionId,
+      nodeId: currentNodeId.value,
+      questionType: currentQuestion.value.type,
+      answer: answerData,
+      userId: session.value.userId
+    }
 
+    // 调用新的processAnswer接口
+    await processAnswer(request)
+
+    // 添加用户答案到对话树
+    const userNodeId = `user_${Date.now()}`
+    let answerContent = ''
+    
+    // 根据问题类型格式化答案内容
     switch (currentQuestion.value.type) {
       case 'input':
         answerContent = `回答：${answerData}`
@@ -506,14 +519,30 @@ const handleSubmitAnswer = async (answerData: any) => {
         break
     }
 
-    // 发送答案到后端
-    const messageRequest: MessageRequest = {
-      sessionId: session.value.sessionId,
+    const userNode: ConversationNode = {
+      id: userNodeId,
       content: answerContent,
-      type: 'USER_ANSWER'
+      type: 'user',
+      timestamp: new Date(),
+      parentId: currentNodeId.value,
+      children: [],
+      isActive: true
     }
 
-    await sendMessage(messageRequest)
+    const currentNode = conversationTree.value.get(currentNodeId.value)
+    if (currentNode) {
+      // 将当前节点的其他子节点设为非活跃状态
+      currentNode.children.forEach(childId => {
+        const childNode = conversationTree.value.get(childId)
+        if (childNode) {
+          setNodeAndDescendantsInactive(childId)
+        }
+      })
+      currentNode.children.push(userNodeId)
+    }
+
+    conversationTree.value.set(userNodeId, userNode)
+    currentNodeId.value = userNodeId
 
     // 清除当前问题状态
     currentQuestion.value = null

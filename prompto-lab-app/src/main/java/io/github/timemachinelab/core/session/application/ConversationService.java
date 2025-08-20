@@ -34,7 +34,7 @@ public class ConversationService {
     private final QaTreeDomain qaTreeDomain;
 
     
-    public void processUserMessage(String userId, String userMessage, Consumer<MessageResponse> sseCallback) {
+    public void processUserMessage(String userId, String userMessage, Consumer<QuestionGenerationOperation.QuestionGenerationResponse> sseCallback) {
         ConversationSession session = sessionManagementService.getUserCurrentSession(userId);
         if (session == null) {
             log.warn("会话不存在");
@@ -44,7 +44,7 @@ public class ConversationService {
         processAIResponse(userMessage, sseCallback);
     }
     
-    private void processAIResponse(String userMessage, Consumer<MessageResponse> sseCallback) {
+    private void processAIResponse(String userMessage, Consumer<QuestionGenerationOperation.QuestionGenerationResponse> sseCallback) {
         try {
 
             JSONObject object = JSON.parseObject(userMessage);
@@ -53,6 +53,8 @@ public class ConversationService {
             QuestionGenerationOperation.QuestionGenerationRequest request = new QuestionGenerationOperation.QuestionGenerationRequest(object.getString("prompt"),object.getString("tree"),object.getString("input"));
             // 调用AI服务
             QuestionGenerationOperation.QuestionGenerationResponse aiResponse = aiService.execute("QUESTION_GENERATION_OP", request);
+
+            sseCallback.accept(aiResponse);
             log.info("AI服务调用成功: {}", aiResponse);
             
         } catch (Exception e) {
@@ -60,7 +62,6 @@ public class ConversationService {
             // 降级处理
             String fallbackResponse = "抱歉，我暂时无法处理您的请求，请稍后再试。";
             String nodeId = "ai_" + System.currentTimeMillis();
-            sseCallback.accept(MessageResponse.aiQuestion(nodeId, fallbackResponse));
         }
     }
 

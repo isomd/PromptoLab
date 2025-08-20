@@ -76,11 +76,10 @@ export const sendAnswer = async (request: UnifiedAnswerRequest): Promise<string>
  * 建立SSE连接
  */
 export const connectUserInteractionSSE = (
-  sessionId: string, 
   onMessage: (response: MessageResponse) => void, 
   onError?: (error: Event) => void
 ): EventSource => {
-  const url = `${API_BASE}/sse/${sessionId}`
+  const url = `${API_BASE}/sse`
   const eventSource = new EventSource(url)
   
   // 监听连接建立事件
