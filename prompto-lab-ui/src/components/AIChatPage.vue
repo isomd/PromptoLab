@@ -34,12 +34,13 @@
       </div>
     </div>
     
-    <!-- 中间对话主页面 -->
+    <!-- 中间问答主页面 -->
     <div class="main-content" :style="{ width: mainContentWidth + 'px' }">
-      <ChatMain 
-        :messages="currentBranchMessages"
+      <QuestionRenderer 
+        :current-question="currentQuestion"
         :is-loading="isLoading"
         @send-message="handleSendMessage"
+        @submit-answer="handleSubmitAnswer"
       />
     </div>
     
@@ -73,7 +74,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import ChatMain from './ChatMain.vue'
+import QuestionRenderer from './QuestionRenderer.vue'
 import ChatTree from './ChatTree.vue'
 import MindMapTree from './MindMapTree.vue'
 import { startConversation, sendMessage, connectSSE, closeSSE, type MessageRequest, type MessageResponse, type ConversationSession } from '@/services/conversationApi'
@@ -123,6 +124,9 @@ const isInitializing = ref(false)
 const conversationTree = ref<Map<string, ConversationNode>>(new Map())
 const currentNodeId = ref<string>('')
 const isLoading = ref(false)
+
+// 问题状态管理
+const currentQuestion = ref<any>(null)
 
 // 初始化会话
 const initializeSession = async () => {
@@ -182,6 +186,20 @@ const handleSSEMessage = (response: MessageResponse) => {
   // 根据消息类型处理
   switch (response.type) {
     case 'AI_QUESTION':
+      // 尝试解析问题内容为问题对象
+      try {
+        const questionData = JSON.parse(response.content)
+        if (questionData.type && ['input', 'single', 'multi', 'form'].includes(questionData.type)) {
+          currentQuestion.value = questionData
+          isLoading.value = false
+          break
+        }
+      } catch (e) {
+        console.log('非JSON格式的问题，作为普通消息处理')
+      }
+      // 如果不是问题格式，作为普通消息处理
+      addAIMessage(response.nodeId, response.content)
+      break
     case 'AI_ANSWER':  // 添加对AI_ANSWER类型的处理
       addAIMessage(response.nodeId, response.content)
       break
@@ -376,6 +394,9 @@ const handleSendMessage = async (content: string) => {
     return
   }
   
+  // 重置当前问题状态，进入新的对话
+  currentQuestion.value = null
+  
   const userNodeId = `user_${Date.now()}`
   const userNode: ConversationNode = {
     id: userNodeId,
@@ -436,6 +457,82 @@ const handleSendMessage = async (content: string) => {
         currentNode.children.splice(index, 1)
       }
     }
+  }
+}
+
+// 处理答案提交
+const handleSubmitAnswer = async (answerData: any) => {
+  if (!session.value || !isConnected.value || !currentQuestion.value) {
+    toast.error({
+      title: '提交失败',
+      message: '会话状态异常，请重新开始',
+      duration: 3000
+    })
+    return
+  }
+  
+  isLoading.value = true
+  
+  try {
+    // 构建答案消息
+    let answerContent = ''
+    
+    switch (currentQuestion.value.type) {
+      case 'input':
+        answerContent = `回答：${answerData}`
+        break
+      case 'single':
+        const selectedOption = currentQuestion.value.options.find((opt: any) => opt.id === answerData[0])
+        answerContent = `选择：${selectedOption ? selectedOption.label : answerData[0]}`
+        break
+      case 'multi':
+        const selectedOptions = currentQuestion.value.options.filter((opt: any) => answerData.includes(opt.id))
+        answerContent = `选择：${selectedOptions.map((opt: any) => opt.label).join('、')}`
+        break
+      case 'form':
+        const formAnswers = answerData.map((item: any) => {
+          const field = currentQuestion.value.fields.find((f: any) => f.id === item.id)
+          if (field) {
+            if (field.type === 'input') {
+              return `${field.question}：${item.value[0]}`
+            } else {
+              const selectedOpts = field.options?.filter((opt: any) => item.value.includes(opt.id))
+              return `${field.question}：${selectedOpts?.map((opt: any) => opt.label).join('、') || item.value.join('、')}`
+            }
+          }
+          return `${item.id}：${item.value.join('、')}`
+        })
+        answerContent = `表单回答：\n${formAnswers.join('\n')}`
+        break
+    }
+    
+    // 发送答案到后端
+    const messageRequest: MessageRequest = {
+      sessionId: session.value.sessionId,
+      content: answerContent,
+      type: 'USER_ANSWER'
+    }
+    
+    await sendMessage(messageRequest)
+    
+    // 清除当前问题状态
+    currentQuestion.value = null
+    
+    toast.success({
+      title: '提交成功',
+      message: '答案已提交，等待AI回复',
+      duration: 2000
+    })
+    
+  } catch (error: any) {
+    console.error('提交答案失败:', error)
+    isLoading.value = false
+    
+    toast.error({
+      title: '提交失败',
+      message: error.message || '答案提交失败，请重试',
+      duration: 4000
+    })
   }
 }
 
