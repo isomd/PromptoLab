@@ -33,7 +33,7 @@ jobs:
           echo "PR Description: $commit_message"
           
           env=""
-          module="PromptoLab"
+          module=""
           module_type=""
           version=""
           skip=""
@@ -46,6 +46,10 @@ jobs:
           
           if [[ "$commit_message" =~ -skip:([^\ ]*) ]]; then
           skip="${BASH_REMATCH[1]}"
+          fi
+          
+          if [[ "$commit_message" =~ -m:([^\ ]*) ]]; then
+          module="${BASH_REMATCH[1]}"
           fi
           
           if [[ "$commit_message" =~ -rp:([^\ ]*) ]]; then

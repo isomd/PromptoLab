@@ -1,6 +1,5 @@
 package io.github.timemachinelab.core.qatree;
 
-import lombok.Data;
 import lombok.Getter;
 
 import java.util.HashMap;
