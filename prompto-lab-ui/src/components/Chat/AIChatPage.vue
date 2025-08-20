@@ -34,13 +34,13 @@
       </div>
     </div>
 
-    <!-- 中间对话主页面 -->
+    <!-- 中间问答主页面 -->
     <div class="main-content" :style="{ width: mainContentWidth + 'px' }">
-      <ChatMain
-        :messages="currentBranchMessages"
+      <QuestionRenderer
+        :current-question="currentQuestion"
         :is-loading="isLoading"
-        :streaming-node-id="streamingNodeId"
         @send-message="handleSendMessage"
+        @submit-answer="handleSubmitAnswer"
       />
     </div>
 
@@ -74,7 +74,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import ChatMain from './ChatMain.vue'
+import QuestionRenderer from './QuestionRenderer.vue'
 import ChatTree from './ChatTree.vue'
 import MindMapTree from './MindMapTree.vue'
 import { startConversation, sendMessage, connectSSE, closeSSE, type MessageRequest, type MessageResponse, type ConversationSession } from '@/services/conversationApi'
@@ -114,10 +114,6 @@ const isResizing = ref(false)
 const startX = ref(0)
 const startRightWidth = ref(0)
 
-// 添加流式消息状态管理
-const streamingNodeId = ref<string>('')
-const streamingContent = ref<string>('')
-
 // 会话状态
 const session = ref<ConversationSession | null>(null)
 const eventSource = ref<EventSource | null>(null)
@@ -128,6 +124,9 @@ const isInitializing = ref(false)
 const conversationTree = ref<Map<string, ConversationNode>>(new Map())
 const currentNodeId = ref<string>('')
 const isLoading = ref(false)
+
+// 问题状态管理
+const currentQuestion = ref<any>(null)
 
 // 初始化会话
 const initializeSession = async () => {
@@ -184,70 +183,42 @@ const initializeSession = async () => {
 const handleSSEMessage = (response: MessageResponse) => {
   console.log('收到SSE消息:', response)
 
+  // 根据消息类型处理
   switch (response.type) {
     case 'AI_QUESTION':
-    case 'AI_ANSWER':
+      // 尝试解析问题内容为问题对象
+      try {
+        const questionData = JSON.parse(response.content)
+        if (questionData.type && ['input', 'single', 'multi', 'form'].includes(questionData.type)) {
+          currentQuestion.value = questionData
+          isLoading.value = false
+          break
+        }
+      } catch (e) {
+        console.log('非JSON格式的问题，作为普通消息处理')
+      }
+      // 如果不是问题格式，作为普通消息处理
       addAIMessage(response.nodeId, response.content)
       break
-    case 'AI_STREAM_START':
-      // 开始流式响应
-      startStreamingMessage(response.nodeId)
+    case 'AI_ANSWER':  // 添加对AI_ANSWER类型的处理
+      addAIMessage(response.nodeId, response.content)
       break
-    case 'AI_STREAM_CHUNK':
-      // 接收流式内容片段
-      appendStreamingContent(response.nodeId, response.content)
+    case 'AI_SELECTION_QUESTION':
+      addAISelectionMessage(response.nodeId, response.content, response.options || [])
       break
-    case 'AI_STREAM_END':
-      // 结束流式响应
-      finishStreamingMessage(response.nodeId)
+    case 'USER_ANSWER':
+      // 用户消息确认，通常不需要特殊处理
       break
-    // ... 其他case保持不变
-  }
-}
-
-// 开始流式消息
-const startStreamingMessage = (nodeId: string) => {
-  streamingNodeId.value = nodeId
-  streamingContent.value = ''
-
-  const aiNode: ConversationNode = {
-    id: nodeId,
-    content: '',
-    type: 'assistant',
-    timestamp: new Date(),
-    parentId: currentNodeId.value,
-    children: [],
-    isActive: true
-  }
-
-  const currentNode = conversationTree.value.get(currentNodeId.value)
-  if (currentNode) {
-    currentNode.children.push(nodeId)
-  }
-
-  conversationTree.value.set(nodeId, aiNode)
-  currentNodeId.value = nodeId
-  isLoading.value = false
-}
-
-// 追加流式内容
-const appendStreamingContent = (nodeId: string, chunk: string) => {
-  if (streamingNodeId.value === nodeId) {
-    streamingContent.value += chunk
-
-    // 更新节点内容
-    const node = conversationTree.value.get(nodeId)
-    if (node) {
-      node.content = streamingContent.value
-    }
-  }
-}
-
-// 完成流式消息
-const finishStreamingMessage = (nodeId: string) => {
-  if (streamingNodeId.value === nodeId) {
-    streamingNodeId.value = ''
-    streamingContent.value = ''
+    case 'SYSTEM_INFO':
+      toast.info({
+        title: '系统消息',
+        message: response.content,
+        duration: 3000
+      })
+      break
+    default:
+      console.warn('未知的消息类型:', response.type, response)
+      break
   }
 }
 
@@ -265,7 +236,7 @@ const handleSSEError = (error: Event) => {
   // 尝试重连
   setTimeout(() => {
     if (session.value && !isConnected.value) {
-      eventSource.value = connectUserInteractionSSE(
+      eventSource.value = connectSSE(
         session.value.sessionId,
         handleSSEMessage,
         handleSSEError
@@ -275,13 +246,7 @@ const handleSSEError = (error: Event) => {
 }
 
 // 添加AI消息到对话树
-const addAIMessage = (nodeId: string, content: string, isStreaming = false) => {
-  const existingNode = conversationTree.value.get(nodeId)
-  if (existingNode && isStreaming) {
-    // 如果是流式更新，只更新内容
-    existingNode.content = content
-    return
-  }
+const addAIMessage = (nodeId: string, content: string) => {
   const aiNode: ConversationNode = {
     id: nodeId,
     content,
@@ -429,6 +394,9 @@ const handleSendMessage = async (content: string) => {
     return
   }
 
+  // 重置当前问题状态，进入新的对话
+  currentQuestion.value = null
+
   const userNodeId = `user_${Date.now()}`
   const userNode: ConversationNode = {
     id: userNodeId,
@@ -459,26 +427,17 @@ const handleSendMessage = async (content: string) => {
   isLoading.value = true
 
   try {
-    // 使用统一答案请求格式调用您的/message接口
-    const userId = 'user_' + Date.now() // 临时用户ID，实际应用中应从认证系统获取
+    // 发送消息到后端
+    const messageRequest: MessageRequest = {
+      sessionId: session.value.sessionId,
+      content,
+      type: 'USER_TEXT'
+    }
 
-    // 按照您的要求，直接设为null
-    const sessionId = null
-    const nodeId = null
-
-    const answerRequest = createAnswerRequest.input(
-      sessionId,
-      nodeId,
-      userId,
-      content.trim()
-    )
-
-    console.log('发送答案请求:', answerRequest)
-
-    await sendAnswer(answerRequest)
+    await sendMessage(messageRequest)
 
     // 消息发送成功，等待SSE返回AI回复
-    console.log('消息已发送到/message接口，等待AI回复...')
+    console.log('消息已发送，等待AI回复...')
 
   } catch (error: any) {
     console.error('发送消息失败:', error)
@@ -498,6 +457,82 @@ const handleSendMessage = async (content: string) => {
         currentNode.children.splice(index, 1)
       }
     }
+  }
+}
+
+// 处理答案提交
+const handleSubmitAnswer = async (answerData: any) => {
+  if (!session.value || !isConnected.value || !currentQuestion.value) {
+    toast.error({
+      title: '提交失败',
+      message: '会话状态异常，请重新开始',
+      duration: 3000
+    })
+    return
+  }
+
+  isLoading.value = true
+
+  try {
+    // 构建答案消息
+    let answerContent = ''
+
+    switch (currentQuestion.value.type) {
+      case 'input':
+        answerContent = `回答：${answerData}`
+        break
+      case 'single':
+        const selectedOption = currentQuestion.value.options.find((opt: any) => opt.id === answerData[0])
+        answerContent = `选择：${selectedOption ? selectedOption.label : answerData[0]}`
+        break
+      case 'multi':
+        const selectedOptions = currentQuestion.value.options.filter((opt: any) => answerData.includes(opt.id))
+        answerContent = `选择：${selectedOptions.map((opt: any) => opt.label).join('、')}`
+        break
+      case 'form':
+        const formAnswers = answerData.map((item: any) => {
+          const field = currentQuestion.value.fields.find((f: any) => f.id === item.id)
+          if (field) {
+            if (field.type === 'input') {
+              return `${field.question}：${item.value[0]}`
+            } else {
+              const selectedOpts = field.options?.filter((opt: any) => item.value.includes(opt.id))
+              return `${field.question}：${selectedOpts?.map((opt: any) => opt.label).join('、') || item.value.join('、')}`
+            }
+          }
+          return `${item.id}：${item.value.join('、')}`
+        })
+        answerContent = `表单回答：\n${formAnswers.join('\n')}`
+        break
+    }
+
+    // 发送答案到后端
+    const messageRequest: MessageRequest = {
+      sessionId: session.value.sessionId,
+      content: answerContent,
+      type: 'USER_ANSWER'
+    }
+
+    await sendMessage(messageRequest)
+
+    // 清除当前问题状态
+    currentQuestion.value = null
+
+    toast.success({
+      title: '提交成功',
+      message: '答案已提交，等待AI回复',
+      duration: 2000
+    })
+
+  } catch (error: any) {
+    console.error('提交答案失败:', error)
+    isLoading.value = false
+
+    toast.error({
+      title: '提交失败',
+      message: error.message || '答案提交失败，请重试',
+      duration: 4000
+    })
   }
 }
 
