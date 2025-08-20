@@ -121,10 +121,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import ApiInfoConfig from '@/components/ApiInfoConfig.vue'
-import AiNodeConfig from '@/components/AiNodeConfig.vue'
-import SystemManagement from '@/components/SystemManagement.vue'
-import AICallLogViewer from '@/components/AICallLogViewer.vue'
+import ApiInfoConfig from '@/components/SFChain/ApiInfoConfig.vue'
+import AiNodeConfig from '@/components/Chat/AiNodeConfig.vue'
+import SystemManagement from '@/components/SFChain/SystemManagement.vue'
+import AICallLogViewer from '@/components/SFChain/AICallLogViewer.vue'
 import { systemApi } from '@/services/systemApi' // 导入系统API服务
 import type { SystemOverview } from '@/types/system'
 
