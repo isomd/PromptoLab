@@ -1,4 +1,4 @@
-package io.github.timemachinelab.demo;
+package io.github.timemachinelab.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
