@@ -3,6 +3,7 @@ package io.github.timemachinelab.core.question;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONException;
 import com.alibaba.fastjson2.JSONObject;
+import io.github.timemachinelab.core.session.infrastructure.ai.QuestionGenerationOperation;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Arrays;
@@ -37,7 +38,7 @@ public class QuestionParser {
      * @return BaseQuestion对象
      * @throws QuestionParseException 解析失败时抛出异常
      */
-    public static BaseQuestion parseQuestion(String jsonStr) throws QuestionParseException {
+    public static QuestionGenerationOperation.QuestionGenerationResponse parseQuestion(String jsonStr) throws QuestionParseException {
         if (jsonStr == null || jsonStr.trim().isEmpty()) {
             throw new QuestionParseException("JSON字符串不能为空", jsonStr, "输入为空或null");
         }
@@ -52,7 +53,7 @@ public class QuestionParser {
         
         // 收集所有解析失败的原因
         List<String> failureReasons = new ArrayList<>();
-        
+        String parentId = jsonObject.getString("parentId");
         // 依次尝试解析成不同类型
         for (Class<? extends BaseQuestion> questionType : QUESTION_TYPES) {
             try {
@@ -61,7 +62,7 @@ public class QuestionParser {
                     String validationResult = validateQuestion(question, jsonObject);
                     if (validationResult == null) {
                         log.info("成功解析为: {}", questionType.getSimpleName());
-                        return question;
+                        return new QuestionGenerationOperation.QuestionGenerationResponse(question,parentId);
                     } else {
                         failureReasons.add(questionType.getSimpleName() + ": " + validationResult);
                     }

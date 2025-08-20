@@ -5,12 +5,12 @@ import lombok.Data;
 @Data
 public class MessageRequest {
     private String sessionId;
+    private String nodeId;
     private String content;
-    
-    public enum MessageType {
-        USER_TEXT,
-        USER_SELECTION,
-        AI_QUESTION,
-        AI_SELECTION_QUESTION
+
+    public enum ContentType {
+        FORM,
+        TEXT,
+        OPTIONS
     }
 }

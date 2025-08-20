@@ -1,12 +1,17 @@
 package io.github.timemachinelab.core.session.infrastructure.web;
 
 import io.github.timemachinelab.core.session.application.ConversationService;
+import io.github.timemachinelab.core.session.application.MessageProcessingService;
+import io.github.timemachinelab.core.session.application.SessionManagementService;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
 import io.github.timemachinelab.core.session.infrastructure.web.dto.MessageRequest;
-
+import io.github.timemachinelab.core.session.infrastructure.web.dto.UnifiedAnswerRequest;
 import io.github.timemachinelab.core.session.infrastructure.web.dto.MessageResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -17,15 +22,13 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/conversation")
 @RequiredArgsConstructor
+@Slf4j
 public class ConversationController {
     
     private final ConversationService conversationService;
+    private final MessageProcessingService messageProcessingService;
+    private final SessionManagementService sessionManagementService;
     private final Map<String, SseEmitter> sseEmitters = new ConcurrentHashMap<>();
-    
-    @PostMapping("/start")
-    public ConversationSession startConversation(@RequestParam String userId) {
-        return conversationService.createSession(userId);
-    }
     
     @GetMapping(value = "/sse/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamConversation(@PathVariable String sessionId) {
@@ -39,30 +42,28 @@ public class ConversationController {
         return emitter;
     }
     
-    @PostMapping("/message")
-    public void addMessage(@RequestBody MessageRequest request) {
-        // 核心业务流程：用户消息 -> AI服务 -> SSE流式返回
-        conversationService.processUserMessage(
-                request.getSessionId(),
-                request.getContent(),
-                response -> sendSseMessage(request.getSessionId(), response)
-        );
-//        switch (request.getType()) {
-//            case USER_TEXT:
-//
-//
-//            case USER_SELECTION:
-//                conversationService.handleUserSelection(request.getSessionId(), request.getQuestionId(), request.getSelectedOption());
-//                sendSseMessage(request.getSessionId(), MessageResponse.userAnswer(request.getQuestionId(), "选择了选项: " + request.getSelectedOption()));
-//                break;
-//        }
+
+    
+    /**
+     * 从MessageRequest中提取用户ID
+     */
+    private String extractUserIdFromMessageRequest(MessageRequest request) {
+        // 临时实现：使用会话ID作为用户ID（仅用于演示）
+        return request.getSessionId() != null ? "user_" + request.getSessionId().hashCode() : "anonymous_" + System.currentTimeMillis();
     }
     
-    @GetMapping("/session/{sessionId}")
-    public ConversationSession getSession(@PathVariable String sessionId) {
-        return conversationService.getSession(sessionId);
+    /**
+     * 从请求中提取用户ID
+     * TODO: 根据您的认证机制实现此方法
+     */
+    private String extractUserIdFromRequest(UnifiedAnswerRequest request) {
+        // 这里需要根据您的认证机制来实现
+        // 可能从JWT token、session、或其他方式获取用户ID
+        
+        // 临时实现：使用会话ID作为用户ID（仅用于演示）
+        return request.getSessionId() != null ? "user_" + request.getSessionId().hashCode() : "anonymous_" + System.currentTimeMillis();
     }
-    
+
     private void sendSseMessage(String sessionId, MessageResponse response) {
         SseEmitter emitter = sseEmitters.get(sessionId);
         if (emitter != null) {

@@ -15,7 +15,6 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/sf/api/ai-logs")
-@CrossOrigin(origins = "*")
 public class AICallLogController {
     
     @Resource

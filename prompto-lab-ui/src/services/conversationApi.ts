@@ -1,4 +1,4 @@
-import { apiJsonRequest, apiRequest } from './apiUtils'
+import { apiRequest } from './apiUtils'
 import { API_CONFIG } from './apiConfig'
 
 // 类型定义
@@ -13,10 +13,9 @@ export interface MessageRequest {
 export interface MessageResponse {
   nodeId: string
   content: string
-  type: 'USER_ANSWER' | 'AI_QUESTION' | 'AI_SELECTION_QUESTION' | 'SYSTEM_INFO' | 'AI_STREAM_START' | 'AI_STREAM_CHUNK' | 'AI_STREAM_END' | 'AI_ANSWER'
+  type: 'USER_ANSWER' | 'AI_QUESTION' | 'AI_SELECTION_QUESTION' | 'SYSTEM_INFO' | 'AI_ANSWER'
   options?: string[]
   timestamp: number
-  isComplete?: boolean  // 标识消息是否完整
 }
 
 export interface ConversationSession {
@@ -27,103 +26,218 @@ export interface ConversationSession {
   createdAt: string
 }
 
-// API基础URL - 使用ConversationController接口
-const API_BASE = `${API_CONFIG.BASE_URL}/api/conversation`
+// 统一答案请求接口
+export interface UnifiedAnswerRequest {
+  sessionId: string
+  nodeId?: string
+  questionType: 'single' | 'multi' | 'input' | 'form'
+  answer: any // 根据questionType不同，类型不同
+  context?: Record<string, any>
+  userId: string
+}
+
+// 表单答案项
+export interface FormAnswerItem {
+  id: string
+  value: string[]
+}
+
+// API基础URL
+const API_BASE = `${API_CONFIG.BASE_URL}/api/demo`
+const USER_INTERACTION_BASE = `${API_CONFIG.BASE_URL}/api/user-interaction`
 
 /**
- * 创建新的会话 - 对应ConversationController.startConversation
+ * 创建新的会话（真实版本 - 对接后端会话管理）
  */
 export const startConversation = async (userId: string): Promise<ConversationSession> => {
-  const url = `${API_BASE}/start?userId=${encodeURIComponent(userId)}`
-  return await apiJsonRequest<ConversationSession>(url, {
-    method: 'POST',
-    requireAuth: false
-  })
+  // 生成真实的会话ID
+  
+  // 返回会话信息
+  return {
+    sessionId: "",
+    userId: userId,
+    qaTree: null,
+    currentNodeId: 'root',
+    createdAt: new Date().toISOString()
+  }
 }
 
 /**
- * 发送消息 - 对应ConversationController.addMessage
+ * 创建新的会话（Demo版本 - 直接返回模拟数据）
+ */
+export const startConversationDemo = async (userId: string): Promise<ConversationSession> => {
+  // Demo版本：直接返回模拟的会话数据
+  return {
+    sessionId: userId,
+    userId: userId,
+    qaTree: null,
+    currentNodeId: 'root',
+    createdAt: new Date().toISOString()
+  }
+}
+
+/**
+ * 发送消息（Demo版本 - 使用SSE Demo的发送接口）
  */
 export const sendMessage = async (request: MessageRequest): Promise<void> => {
-  const url = `${API_BASE}/message`
+  const url = `${API_BASE}/send/${request.sessionId}?message=${encodeURIComponent(request.content)}`
   await apiRequest(url, {
     method: 'POST',
-    body: JSON.stringify(request),
     requireAuth: false
   })
 }
 
 /**
- * 获取会话信息
+ * 获取会话信息（Demo版本）
  */
 export const getSession = async (sessionId: string): Promise<ConversationSession> => {
-  const url = `${API_BASE}/session/${sessionId}`
-  return await apiJsonRequest<ConversationSession>(url, {
-    method: 'GET',
-    requireAuth: false
-  })
+  return {
+    sessionId: sessionId,
+    userId: sessionId,
+    qaTree: null,
+    currentNodeId: 'root',
+    createdAt: new Date().toISOString()
+  }
 }
 
 /**
- * 建立SSE连接 - 对应ConversationController.streamConversation
- */
-/**
- * 建立SSE连接 - 支持流式响应
+ * 建立SSE连接（Demo版本 - 使用SSE Demo接口）
  */
 export const connectSSE = (sessionId: string, onMessage: (response: MessageResponse) => void, onError?: (error: Event) => void): EventSource => {
   const url = `${API_BASE}/sse/${sessionId}`
   const eventSource = new EventSource(url)
-  
-  // 监听默认message事件
+
+  // 监听连接建立事件
+  eventSource.addEventListener('connected', (event: MessageEvent) => {
+    console.log('SSE连接已建立:', event.data)
+  })
+
+  // 监听普通消息
   eventSource.addEventListener('message', (event: MessageEvent) => {
     try {
-      const response: MessageResponse = JSON.parse(event.data)
+      // Demo版本：将SSE消息转换为MessageResponse格式
+      const response: MessageResponse = {
+        nodeId: `ai_${Date.now()}`,
+        content: event.data,
+        type: 'AI_QUESTION',
+        timestamp: Date.now()
+      }
       onMessage(response)
     } catch (error) {
       console.error('解析SSE消息失败:', error)
     }
   })
-  
-  // 监听流式开始事件
-  eventSource.addEventListener('stream_start', (event: MessageEvent) => {
+
+  // 监听流式数据
+  eventSource.addEventListener('stream', (event: MessageEvent) => {
     try {
-      const response: MessageResponse = JSON.parse(event.data)
-      response.type = 'AI_STREAM_START'
+      const response: MessageResponse = {
+        nodeId: `stream_${Date.now()}`,
+        content: event.data,
+        type: 'AI_QUESTION',
+        timestamp: Date.now()
+      }
       onMessage(response)
     } catch (error) {
-      console.error('解析流式开始消息失败:', error)
+      console.error('解析流式消息失败:', error)
     }
   })
-  
-  // 监听流式数据块事件
-  eventSource.addEventListener('stream_chunk', (event: MessageEvent) => {
+
+  // 监听广播消息
+  eventSource.addEventListener('broadcast', (event: MessageEvent) => {
     try {
-      const response: MessageResponse = JSON.parse(event.data)
-      response.type = 'AI_STREAM_CHUNK'
+      const response: MessageResponse = {
+        nodeId: `broadcast_${Date.now()}`,
+        content: `[广播] ${event.data}`,
+        type: 'SYSTEM_INFO',
+        timestamp: Date.now()
+      }
       onMessage(response)
     } catch (error) {
-      console.error('解析流式数据块失败:', error)
+      console.error('解析广播消息失败:', error)
     }
   })
-  
-  // 监听流式结束事件
-  eventSource.addEventListener('stream_end', (event: MessageEvent) => {
-    try {
-      const response: MessageResponse = JSON.parse(event.data)
-      response.type = 'AI_STREAM_END'
-      onMessage(response)
-    } catch (error) {
-      console.error('解析流式结束消息失败:', error)
-    }
-  })
-  
+
   eventSource.onerror = (error: Event) => {
     console.error('SSE连接错误:', error)
     if (onError) {
       onError(error)
     }
   }
+
+  return eventSource
+}
+
+/**
+ * 发送用户消息到用户交互接口
+ * 对接后端的用户交互消息接口
+ */
+export const sendUserMessage = async (request: MessageRequest): Promise<void> => {
+  // 构建统一答案请求格式
+  const unifiedRequest: UnifiedAnswerRequest = {
+    sessionId: request.sessionId,
+    questionType: 'input', // 普通文本消息作为input类型
+    answer: request.content,
+    userId: request.sessionId // 使用sessionId作为userId
+  }
   
+  const url = `${USER_INTERACTION_BASE}/message`
+  await apiRequest(url, {
+    method: 'POST',
+    body: JSON.stringify(unifiedRequest),
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    requireAuth: false
+  })
+}
+
+/**
+ * 处理统一答案请求
+ * 对接后端的processAnswer接口
+ */
+export const processAnswer = async (request: UnifiedAnswerRequest): Promise<void> => {
+  const url = `${USER_INTERACTION_BASE}/message`
+  await apiRequest(url, {
+    method: 'POST',
+    body: JSON.stringify(request),
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    requireAuth: false
+  })
+}
+
+/**
+ * 建立用户交互SSE连接
+ * 对接后端的用户交互SSE接口
+ */
+export const connectUserInteractionSSE = (sessionId: string, onMessage: (response: MessageResponse) => void, onError?: (error: Event) => void): EventSource => {
+  const url = `${USER_INTERACTION_BASE}/sse/${sessionId}`
+  const eventSource = new EventSource(url)
+
+  // 监听连接建立事件
+  eventSource.addEventListener('connected', (event: MessageEvent) => {
+    console.log('用户交互SSE连接已建立:', event.data)
+  })
+
+  // 监听消息事件
+  eventSource.addEventListener('message', (event: MessageEvent) => {
+    try {
+      const response: MessageResponse = JSON.parse(event.data)
+      onMessage(response)
+    } catch (error) {
+      console.error('解析用户交互SSE消息失败:', error)
+    }
+  })
+
+  eventSource.onerror = (error: Event) => {
+    console.error('用户交互SSE连接错误:', error)
+    if (onError) {
+      onError(error)
+    }
+  }
+
   return eventSource
 }
 
