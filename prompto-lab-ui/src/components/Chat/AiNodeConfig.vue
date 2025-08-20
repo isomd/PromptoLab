@@ -112,7 +112,7 @@
           :class="{
             'configured': operation.modelName,
             'disabled': !operation.enabled,
-            'testing': testing === operationType
+            'testing': testing === String(operationType)
           }"
         >
           <!-- 卡片头部 -->
@@ -183,10 +183,10 @@
               v-if="operation.modelName"
               @click="testOperation(String(operationType))"
               class="action-btn test large"
-              :disabled="testing === operationType"
-              :title="testing === operationType ? '测试中...' : '测试操作'"
+              :disabled="testing === String(operationType)"
+              :title="testing === String(operationType) ? '测试中...' : '测试操作'"
             >
-              <svg v-if="testing === operationType" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg v-if="testing === String(operationType)" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
               </svg>
               <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
