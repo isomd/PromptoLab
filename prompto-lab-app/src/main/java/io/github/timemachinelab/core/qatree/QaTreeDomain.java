@@ -24,14 +24,13 @@ public class QaTreeDomain {
     
     /**
      * 使用ConversationSession的自增ID创建QaTree
-     * @param userStartQuestion 用户开始问题
+     * @param question 用户开始问题
      * @param session 会话对象，用于获取自增ID
      * @return 创建的QaTree
      */
-    public QaTree createTree(String userStartQuestion, ConversationSession session) {
+    public QaTree createTree(String question, ConversationSession session) {
         InputQuestion startQA = new InputQuestion();
-        startQA.setQuestion(userStartQuestion);
-        startQA.setAnswer(userStartQuestion);
+        startQA.setQuestion(question);
         // 使用会话的自增ID创建根节点
         String rootNodeId = session.getNextNodeId();
         QaTreeNode startNode = new QaTreeNode(startQA, rootNodeId);

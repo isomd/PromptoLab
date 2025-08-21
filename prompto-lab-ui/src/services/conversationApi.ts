@@ -57,7 +57,7 @@ export const startConversation = async (userId: string): Promise<ConversationSes
     sessionId: "",
     userId: userId,
     qaTree: null,
-    currentNodeId: 'root',
+    currentNodeId: '', // 由SSE连接建立时动态设置
     createdAt: new Date().toISOString()
   }
 }
@@ -71,7 +71,7 @@ export const startConversationDemo = async (userId: string): Promise<Conversatio
     sessionId: userId,
     userId: userId,
     qaTree: null,
-    currentNodeId: 'root',
+    currentNodeId: '', // 由SSE连接建立时动态设置
     createdAt: new Date().toISOString()
   }
 }
@@ -95,7 +95,7 @@ export const getSession = async (sessionId: string): Promise<ConversationSession
     sessionId: sessionId,
     userId: sessionId,
     qaTree: null,
-    currentNodeId: 'root',
+    currentNodeId: '', // 由SSE连接建立时动态设置
     createdAt: new Date().toISOString()
   }
 }

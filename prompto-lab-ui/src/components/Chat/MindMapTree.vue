@@ -91,7 +91,7 @@
             
             <!-- 删除按钮 -->
             <g 
-              v-if="node.id !== 'root'"
+              v-if="node.parentId"
               class="delete-btn"
               :transform="`translate(${node.width - 25}, 5)`"
               @click.stop="deleteNode(node.id)"
@@ -257,9 +257,16 @@ const layoutNodes = computed(() => {
     })
   }
   
-  const rootNode = props.conversationTree.get('root')
-  if (rootNode) {
-    calculateLayout('root', 0, 0)
+  // 动态查找根节点（没有parentId的节点）
+  let rootNodeId = ''
+  for (const [id, node] of props.conversationTree) {
+    if (!node.parentId) {
+      rootNodeId = id
+      break
+    }
+  }
+  if (rootNodeId) {
+    calculateLayout(rootNodeId, 0, 0)
   }
   
   return nodes

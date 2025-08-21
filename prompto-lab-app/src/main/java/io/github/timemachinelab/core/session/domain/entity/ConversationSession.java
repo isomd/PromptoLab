@@ -1,17 +1,26 @@
 package io.github.timemachinelab.core.session.domain.entity;
 
 import io.github.timemachinelab.core.qatree.*;
+import lombok.Data;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Getter
+@Data
 public class ConversationSession {
     
     private final String sessionId;
     private final String userId;
+    /**
+     * -- SETTER --
+     *  设置QaTree（仅用于初始化）
+     *
+     * @param qaTree QA树对象
+     */
+    @Setter
     private QaTree qaTree; // 移除final，允许后续设置
     private final LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -36,10 +45,10 @@ public class ConversationSession {
     }
     
     /**
-     * 设置QaTree（仅用于初始化）
-     * @param qaTree QA树对象
+     * 获取节点ID计数器
+     * @return 节点ID计数器
      */
-    public void setQaTree(QaTree qaTree) {
-        this.qaTree = qaTree;
+    public AtomicInteger getNodeIdCounter() {
+        return nodeIdCounter;
     }
 }
