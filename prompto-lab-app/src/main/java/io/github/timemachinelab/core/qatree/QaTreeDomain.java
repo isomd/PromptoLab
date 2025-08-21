@@ -88,4 +88,62 @@ public class QaTreeDomain {
         
         return true;
     }
+    
+    /**
+     * 获取指定节点的问题内容
+     * @param tree QA树
+     * @param nodeId 节点ID
+     * @return 问题内容，如果节点不存在或问题为空则返回null
+     */
+    public String getNodeQuestion(QaTree tree, String nodeId) {
+        if (tree == null || nodeId == null) {
+            return null;
+        }
+        
+        QaTreeNode node = tree.getNodeById(nodeId);
+        if (node == null || node.getQa() == null) {
+            return null;
+        }
+        
+        return node.getQa().getQuestion();
+    }
+    
+    /**
+     * 验证节点是否存在
+     * @param tree QA树
+     * @param nodeId 节点ID
+     * @return 节点是否存在
+     */
+    public boolean nodeExists(QaTree tree, String nodeId) {
+        if (tree == null || nodeId == null) {
+            return false;
+        }
+        
+        return tree.getNodeById(nodeId) != null;
+    }
+    
+    /**
+     * 移除指定节点及其所有子节点
+     * @param tree QA树
+     * @param nodeId 要移除的节点ID
+     * @return 是否移除成功
+     */
+    public boolean removeNode(QaTree tree, String nodeId) {
+        if (tree == null || nodeId == null) {
+            return false;
+        }
+        
+        QaTreeNode nodeToRemove = tree.getNodeById(nodeId);
+        if (nodeToRemove == null) {
+            return false;
+        }
+        
+        // 不能移除根节点
+        if (tree.getRoot() != null && tree.getRoot().getId().equals(nodeId)) {
+            return false;
+        }
+        
+        // 从树中移除节点（包括从父节点的children中移除和从nodeMap中移除）
+        return tree.removeNode(nodeId);
+    }
 }

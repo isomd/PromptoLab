@@ -38,4 +38,25 @@ public interface MessageProcessingService {
      * @return 是否有效
      */
     boolean validateAnswer(UnifiedAnswerRequest request);
+    
+    /**
+      * 处理重试请求
+      * 将重试信息转换为适合大模型处理的格式
+      * 
+      * @param sessionId 会话ID
+      * @param nodeId 节点ID
+      * @param whyRetry 重试原因
+      * @param conversationSession 会话对象
+      * @return 处理后的消息内容
+      */
+     String processRetryMessage(String sessionId, String nodeId, String whyRetry, ConversationSession conversationSession);
+     
+     /**
+      * 处理并发送消息给AI服务
+      * 统一的消息处理和发送逻辑
+      * 
+      * @param session 会话对象
+      * @param processedMessage 处理后的消息
+      */
+     void processAndSendMessage(ConversationSession session, String processedMessage);
 }
