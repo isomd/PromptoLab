@@ -18,7 +18,7 @@
           </div>
           <span class="node-text">{{ truncatedText }}</span>
         </div>
-        <div class="node-actions" v-if="node.id !== 'root'">
+        <div class="node-actions" v-if="node.parentId">
           <button 
             @click.stop="deleteNode" 
             class="btn-delete"

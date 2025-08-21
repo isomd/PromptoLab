@@ -119,7 +119,7 @@ public class SessionManagementService {
         ConversationSession session = new ConversationSession(userId, newSessionId, null);
         
         // 使用会话的自增ID创建QaTree，确保根节点ID=1
-        QaTree tree = qaTreeDomain.createTree("default", session);
+        QaTree tree = qaTreeDomain.createTree("你好，我有什么可以帮你？", session);
         
         // 设置QaTree到会话中
         session.setQaTree(tree);

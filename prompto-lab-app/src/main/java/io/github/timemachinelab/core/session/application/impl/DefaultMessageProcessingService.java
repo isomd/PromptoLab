@@ -71,8 +71,8 @@ public class DefaultMessageProcessingService implements MessageProcessingService
             }
             
             String nodeId = request.getNodeId();
-            // 如果nodeId为'root'，使用根节点ID
-            if ("root".equals(nodeId) && qaTree.getRoot() != null) {
+            // 如果nodeId为'1'（根节点），使用根节点ID
+            if ("1".equals(nodeId) && qaTree.getRoot() != null) {
                 nodeId = qaTree.getRoot().getId();
             }
             

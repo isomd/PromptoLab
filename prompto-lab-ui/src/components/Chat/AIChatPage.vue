@@ -250,22 +250,22 @@ const handleSSEMessage = (response: any) => {
       
       console.log('会话已建立:', session.value)
       
-      // 后端总是会返回nodeId，新会话返回'root'，已存在会话返回实际的nodeId
+      // 后端总是会返回nodeId，新会话返回'1'，已存在会话返回实际的nodeId
       if (response.nodeId) {
         currentNodeId.value = response.nodeId
         console.log('会话节点ID:', response.nodeId)
         
         // 如果是根节点，初始化根节点
-        if (response.nodeId === 'root') {
+        if (response.nodeId === '1') {
           const rootNode: ConversationNode = {
-            id: 'root',
+            id: '1',
             content: '您好！我是AI助手，有什么可以帮助您的吗？',
             type: 'assistant',
             timestamp: new Date(),
             children: [],
             isActive: true
           }
-          conversationTree.value.set('root', rootNode)
+          conversationTree.value.set('1', rootNode)
         }
       }
       
@@ -295,14 +295,52 @@ const handleSSEMessage = (response: any) => {
     // 这是新的问题格式
     currentQuestion.value = response.question
     
-    // 更新当前节点ID为问题的parentId
-    if (response.parentId) {
-      currentNodeId.value = response.parentId
-      console.log('更新当前节点ID为:', response.parentId)
+    // 更新当前节点ID为新创建的问题节点ID
+    if (response.currentNodeId) {
+      // 创建问题节点并添加到对话树
+      const questionContent = `${response.question.question}${response.question.desc ? '\n' + response.question.desc : ''}`
+      
+      const questionNode: ConversationNode = {
+        id: response.currentNodeId,
+        content: questionContent,
+        type: 'assistant',
+        timestamp: new Date(),
+        parentId: response.parentNodeId,
+        children: [],
+        isActive: true
+      }
+      
+      // 更新父节点的children数组
+      if (response.parentNodeId) {
+        const parentNode = conversationTree.value.get(response.parentNodeId)
+        if (parentNode) {
+          // 将父节点的其他子节点设为非活跃状态
+          parentNode.children.forEach(childId => {
+            const childNode = conversationTree.value.get(childId)
+            if (childNode) {
+              setNodeAndDescendantsInactive(childId)
+            }
+          })
+          parentNode.children.push(response.currentNodeId)
+        }
+      }
+      
+      // 添加新问题节点到对话树
+      conversationTree.value.set(response.currentNodeId, questionNode)
+      currentNodeId.value = response.currentNodeId
+      console.log('更新当前节点ID为:', response.currentNodeId)
+      
+      // 在聊天界面显示问题内容
+      addAIMessage(response.currentNodeId, questionContent)
+    }
+    
+    // 记录父节点ID，用于后续构建树形关系图
+    if (response.parentNodeId) {
+      console.log('父节点ID:', response.parentNodeId)
     }
     
     isLoading.value = false
-    console.log('收到新格式问题:', response.question, '父节点ID:', response.parentId)
+    console.log('收到新格式问题:', response.question, '当前节点ID:', response.currentNodeId, '父节点ID:', response.parentNodeId)
     return
   }
   
@@ -639,10 +677,13 @@ const handleSubmitAnswer = async (answerData: any) => {
   isLoading.value = true
 
   try {
+    // 保存当前问题节点ID，用于后端验证
+    const questionNodeId = currentNodeId.value
+    
     // 构建统一答案请求，必须包含sessionId和正确的nodeId
     const request: UnifiedAnswerRequest = {
       sessionId: session.value.sessionId, // 必需的sessionId
-      nodeId: currentNodeId.value, // 当前节点ID，用于后端验证
+      nodeId: questionNodeId, // 问题节点ID，用于后端验证
       questionType: currentQuestion.value.type,
       answer: answerData,
       userId: session.value.userId // 必需的userId
@@ -708,10 +749,11 @@ const handleSubmitAnswer = async (answerData: any) => {
     }
 
     conversationTree.value.set(userNodeId, userNode)
-    currentNodeId.value = userNodeId
+    // 不更新currentNodeId为用户节点ID，保持为问题节点ID直到收到新问题
+    // currentNodeId.value = userNodeId
 
-    // 清除当前问题状态
-    currentQuestion.value = null
+    // 不清除当前问题状态，保持显示直到收到新问题
+    // currentQuestion.value = null
 
     toast.success({
       title: '提交成功',
@@ -799,13 +841,19 @@ const handleBranchDeleted = (nodeId: string) => {
   deleteNodeAndDescendants(nodeId)
 
   if (!conversationTree.value.has(currentNodeId.value)) {
-    let newCurrentId = 'root'
+    // 动态查找根节点（没有parentId的节点）
+    let rootNodeId = ''
+    let newCurrentId = ''
     conversationTree.value.forEach((node, id) => {
-      if (node.isActive && id !== 'root') {
+      if (!node.parentId) {
+        rootNodeId = id
+      }
+      if (node.isActive) {
         newCurrentId = id
       }
     })
-    currentNodeId.value = newCurrentId
+    // 优先使用活跃节点，否则回退到根节点
+    currentNodeId.value = newCurrentId || rootNodeId
   }
 }
 </script>
