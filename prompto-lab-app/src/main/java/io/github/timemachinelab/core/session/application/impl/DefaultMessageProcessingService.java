@@ -40,6 +40,12 @@ public class DefaultMessageProcessingService implements MessageProcessingService
             return "无效的回答格式";
         }
         
+        // 获取会话并更新qaTree
+        ConversationSession session = sessionManagementService.validateAndGetSession(request.getUserId(), request.getSessionId());
+        if (session != null) {
+            updateQaTreeWithAnswer(session, request);
+        }
+        
         // 将答案转换为可读文本
         String readableText = request.toReadableText();
         
@@ -51,6 +57,56 @@ public class DefaultMessageProcessingService implements MessageProcessingService
         log.info("处理答案请求 - 问题类型: {}, 内容: {}", request.getQuestionType(), readableText);
         
         return message.toString();
+    }
+    
+    /**
+     * 更新qaTree中的答案
+     */
+    private void updateQaTreeWithAnswer(ConversationSession session, UnifiedAnswerRequest request) {
+        try {
+            QaTree qaTree = session.getQaTree();
+            if (qaTree == null) {
+                log.warn("会话的qaTree为空，无法更新答案 - 会话ID: {}", session.getSessionId());
+                return;
+            }
+            
+            String nodeId = request.getNodeId();
+            // 如果nodeId为'root'，使用根节点ID
+            if ("root".equals(nodeId) && qaTree.getRoot() != null) {
+                nodeId = qaTree.getRoot().getId();
+            }
+            
+            // 根据问题类型准备答案数据
+            Object answerData = prepareAnswerData(request);
+            
+            // 更新节点答案
+             boolean updated = qaTreeDomain.updateNodeAnswer(qaTree, nodeId, answerData);
+             if (updated) {
+                 log.info("成功更新qaTree节点答案 - 会话ID: {}, 节点ID: {}", session.getSessionId(), nodeId);
+                 // 会话数据已在内存中更新，无需额外保存操作
+             } else {
+                 log.warn("更新qaTree节点答案失败 - 会话ID: {}, 节点ID: {}", session.getSessionId(), nodeId);
+             }
+        } catch (Exception e) {
+            log.error("更新qaTree答案时发生异常 - 会话ID: {}, 错误: {}", session.getSessionId(), e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 根据问题类型准备答案数据
+     */
+    private Object prepareAnswerData(UnifiedAnswerRequest request) {
+        switch (request.getQuestionType().toLowerCase()) {
+            case "input":
+                return request.getInputAnswer();
+            case "single":
+            case "multi":
+                return request.getChoiceAnswer();
+            case "form":
+                return request.getFormAnswer();
+            default:
+                return request.getAnswerString();
+        }
     }
     
     @Override

@@ -5,15 +5,19 @@ import lombok.Getter;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Getter
 public class ConversationSession {
     
     private final String sessionId;
     private final String userId;
-    private final QaTree qaTree;
+    private QaTree qaTree; // 移除final，允许后续设置
     private final LocalDateTime createTime;
     private LocalDateTime updateTime;
+    
+    // 节点ID自增计数器，从1开始
+    private final AtomicInteger nodeIdCounter = new AtomicInteger(0);
     
     public ConversationSession(String userId, String sessionId, QaTree qaTree) {
         this.qaTree = qaTree;
@@ -21,5 +25,21 @@ public class ConversationSession {
         this.userId = userId;
         this.createTime = LocalDateTime.now();
         this.updateTime = LocalDateTime.now();
+    }
+    
+    /**
+     * 获取下一个节点ID（自增）
+     * @return 自增的节点ID字符串
+     */
+    public String getNextNodeId() {
+        return String.valueOf(nodeIdCounter.incrementAndGet());
+    }
+    
+    /**
+     * 设置QaTree（仅用于初始化）
+     * @param qaTree QA树对象
+     */
+    public void setQaTree(QaTree qaTree) {
+        this.qaTree = qaTree;
     }
 }

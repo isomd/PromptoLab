@@ -35,7 +35,7 @@ public class ConversationService {
 
     
     public void processUserMessage(String userId, String userMessage, Consumer<QuestionGenerationOperation.QuestionGenerationResponse> sseCallback) {
-        ConversationSession session = sessionManagementService.getUserCurrentSession(userId);
+        ConversationSession session = sessionManagementService.getUserLatestSession(userId);
         if (session == null) {
             log.warn("会话不存在");
             return;

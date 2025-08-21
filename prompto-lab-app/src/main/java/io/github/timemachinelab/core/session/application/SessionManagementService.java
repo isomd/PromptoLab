@@ -8,9 +8,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 /**
  * 会话管理服务
@@ -23,8 +26,8 @@ import java.util.UUID;
 @Slf4j
 public class SessionManagementService {
     
-    // 用户ID到会话ID的映射
-    private final Map<String, String> userSessionMap = new ConcurrentHashMap<>();
+    // 用户ID到会话ID列表的映射（一对多关系）
+    private final Map<String, List<String>> userSessionMap = new ConcurrentHashMap<>();
     
     // 会话存储
     private final Map<String, ConversationSession> sessions = new ConcurrentHashMap<>();
@@ -73,78 +76,147 @@ public class SessionManagementService {
     }
     
     /**
-     * 获取用户当前会话
+     * 获取用户的所有会话
      * 
      * @param userId 用户ID
-     * @return 会话对象
+     * @return 会话列表
      */
-    public ConversationSession getUserCurrentSession(String userId) {
-        String sessionId = userSessionMap.get(userId);
-        return sessionId != null ? sessions.get(sessionId) : null;
+    public List<ConversationSession> getUserSessions(String userId) {
+        List<String> sessionIds = userSessionMap.get(userId);
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return sessionIds.stream()
+                .map(sessions::get)
+                .filter(session -> session != null)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 获取用户最新的会话（最后创建的会话）
+     * 
+     * @param userId 用户ID
+     * @return 最新的会话对象，如果没有会话则返回null
+     */
+    public ConversationSession getUserLatestSession(String userId) {
+        List<String> sessionIds = userSessionMap.get(userId);
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return null;
+        }
+        // 返回列表中最后一个会话（最新创建的）
+        String latestSessionId = sessionIds.get(sessionIds.size() - 1);
+        return sessions.get(latestSessionId);
     }
 
     /**
      * 创建新会话
      */
-    private ConversationSession createNewSession(String userId) {
-        // 如果用户已有会话，先清理旧的映射
-        String oldSessionId = userSessionMap.get(userId);
-        if (oldSessionId != null) {
-            sessions.remove(oldSessionId);
-            log.info("清理用户旧会话 - 用户: {}, 旧会话: {}", userId, oldSessionId);
-        }
-        
+    public ConversationSession createNewSession(String userId) {
         // 生成新的sessionId
         String newSessionId = UUID.randomUUID().toString();
-        QaTree tree = createDefaultQaTree();
         
-        // 创建新会话
-        ConversationSession session = new ConversationSession(userId, newSessionId, tree);
+        // 先创建会话对象（qaTree为null）
+        ConversationSession session = new ConversationSession(userId, newSessionId, null);
+        
+        // 使用会话的自增ID创建QaTree，确保根节点ID=1
+        QaTree tree = qaTreeDomain.createTree("default", session);
+        
+        // 设置QaTree到会话中
+        session.setQaTree(tree);
 
-        // 建立映射关系
-        userSessionMap.put(userId, session.getSessionId());
+        // 建立映射关系 - 添加到用户的会话列表中
+        userSessionMap.computeIfAbsent(userId, k -> new ArrayList<>()).add(session.getSessionId());
         sessions.put(session.getSessionId(), session);
 
-        log.info("创建新会话 - 用户: {}, 会话: {}", userId, session.getSessionId());
+        log.info("创建新会话 - 用户: {}, 会话: {}, 根节点ID: 1", userId, session.getSessionId());
         return session;
     }
     
     /**
      * 验证并获取现有会话
+     * 如果会话不存在或不属于该用户，返回null
      */
     public ConversationSession validateAndGetSession(String userId, String sessionId) {
         ConversationSession session = sessions.get(sessionId);
         
         if (session == null) {
-            log.warn("会话不存在，创建新会话 - 用户: {}, 请求会话: {}", userId, sessionId);
-            return createNewSession(userId);
+            log.warn("会话不存在 - 用户: {}, 请求会话: {}", userId, sessionId);
+            return null;
         }
         
         // 验证会话是否属于该用户
         if (!session.getUserId().equals(userId)) {
-            log.warn("会话不属于该用户，创建新会话 - 用户: {}, 会话: {}, 会话所有者: {}", 
+            log.warn("会话不属于该用户 - 用户: {}, 会话: {}, 会话所有者: {}", 
                     userId, sessionId, session.getUserId());
-            return createNewSession(userId);
+            return null;
         }
         
-        // 更新用户会话映射（防止映射不一致）
-        userSessionMap.put(userId, sessionId);
+        // 确保用户会话映射中包含该会话ID（防止映射不一致）
+        List<String> userSessions = userSessionMap.computeIfAbsent(userId, k -> new ArrayList<>());
+        if (!userSessions.contains(sessionId)) {
+            userSessions.add(sessionId);
+        }
         
         log.debug("验证会话成功 - 用户: {}, 会话: {}", userId, sessionId);
         return session;
     }
     
     /**
-     * 清理会话
+     * 清理指定会话
      * 
      * @param sessionId 会话ID
      */
     public void removeSession(String sessionId) {
         ConversationSession session = sessions.remove(sessionId);
         if (session != null) {
-            userSessionMap.remove(session.getUserId());
+            // 从用户会话列表中移除该会话ID
+            List<String> userSessions = userSessionMap.get(session.getUserId());
+            if (userSessions != null) {
+                userSessions.remove(sessionId);
+                // 如果用户没有其他会话了，移除整个映射
+                if (userSessions.isEmpty()) {
+                    userSessionMap.remove(session.getUserId());
+                }
+            }
             log.info("清理会话 - 用户: {}, 会话: {}", session.getUserId(), sessionId);
         }
+    }
+    
+    /**
+     * 清理用户的所有会话
+     * 
+     * @param userId 用户ID
+     */
+    public void removeAllUserSessions(String userId) {
+        List<String> sessionIds = userSessionMap.remove(userId);
+        if (sessionIds != null) {
+            for (String sessionId : sessionIds) {
+                sessions.remove(sessionId);
+            }
+            log.info("清理用户所有会话 - 用户: {}, 会话数量: {}", userId, sessionIds.size());
+        }
+    }
+    
+    /**
+     * 根据会话ID获取会话对象
+     * 
+     * @param sessionId 会话ID
+     * @return 会话对象，如果不存在则返回null
+     */
+    public ConversationSession getSessionById(String sessionId) {
+        return sessions.get(sessionId);
+    }
+    
+    /**
+     * 检查用户是否拥有指定的会话
+     * 
+     * @param userId 用户ID
+     * @param sessionId 会话ID
+     * @return 是否拥有该会话
+     */
+    public boolean userOwnsSession(String userId, String sessionId) {
+        List<String> userSessions = userSessionMap.get(userId);
+        return userSessions != null && userSessions.contains(sessionId);
     }
     
     /**
@@ -154,6 +226,18 @@ public class SessionManagementService {
         Map<String, Object> stats = new ConcurrentHashMap<>();
         stats.put("totalSessions", sessions.size());
         stats.put("activeUsers", userSessionMap.size());
+        
+        // 计算每个用户的会话数量分布
+        Map<String, Integer> userSessionCounts = new ConcurrentHashMap<>();
+        int totalUserSessions = 0;
+        for (Map.Entry<String, List<String>> entry : userSessionMap.entrySet()) {
+            int sessionCount = entry.getValue().size();
+            userSessionCounts.put(entry.getKey(), sessionCount);
+            totalUserSessions += sessionCount;
+        }
+        
+        stats.put("userSessionCounts", userSessionCounts);
+        stats.put("averageSessionsPerUser", userSessionMap.isEmpty() ? 0 : (double) totalUserSessions / userSessionMap.size());
         stats.put("timestamp", System.currentTimeMillis());
         return stats;
     }

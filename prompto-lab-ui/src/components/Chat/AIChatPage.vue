@@ -120,6 +120,12 @@ const eventSource = ref<EventSource | null>(null)
 const isConnected = ref(false)
 const isInitializing = ref(false)
 
+// SSE连接管理
+const connectionTimeout = ref<NodeJS.Timeout | null>(null)
+const activityTimeout = ref<NodeJS.Timeout | null>(null)
+const ACTIVITY_TIMEOUT = 5 * 60 * 1000 // 5分钟不活跃超时
+const lastActivityTime = ref<number>(Date.now())
+
 // 对话树存储所有节点
 const conversationTree = ref<Map<string, ConversationNode>>(new Map())
 const currentNodeId = ref<string>('')
@@ -128,6 +134,64 @@ const isLoading = ref(false)
 // 问题状态管理
 const currentQuestion = ref<any>(null)
 
+// 确保SSE连接唯一性
+const ensureUniqueConnection = () => {
+  if (eventSource.value) {
+    console.log('关闭现有SSE连接以确保唯一性')
+    closeSSE(eventSource.value)
+    eventSource.value = null
+    isConnected.value = false
+  }
+  
+  // 清理定时器
+  if (connectionTimeout.value) {
+    clearTimeout(connectionTimeout.value)
+    connectionTimeout.value = null
+  }
+  if (activityTimeout.value) {
+    clearTimeout(activityTimeout.value)
+    activityTimeout.value = null
+  }
+}
+
+// 更新活跃时间
+const updateActivity = () => {
+  lastActivityTime.value = Date.now()
+  
+  // 重置活跃超时定时器
+  if (activityTimeout.value) {
+    clearTimeout(activityTimeout.value)
+  }
+  
+  activityTimeout.value = setTimeout(() => {
+    console.log('SSE连接因不活跃超时，自动关闭')
+    closeConnection()
+    toast.info({
+      title: '连接已关闭',
+      message: '由于长时间无活动，连接已自动关闭',
+      duration: 3000
+    })
+  }, ACTIVITY_TIMEOUT)
+}
+
+// 关闭连接
+const closeConnection = () => {
+  if (eventSource.value) {
+    closeSSE(eventSource.value)
+    eventSource.value = null
+  }
+  isConnected.value = false
+  
+  if (connectionTimeout.value) {
+    clearTimeout(connectionTimeout.value)
+    connectionTimeout.value = null
+  }
+  if (activityTimeout.value) {
+    clearTimeout(activityTimeout.value)
+    activityTimeout.value = null
+  }
+}
+
 // 初始化会话
 const initializeSession = async () => {
   if (isInitializing.value) return
@@ -135,40 +199,28 @@ const initializeSession = async () => {
   isInitializing.value = true
 
   try {
-    // 创建新会话
+    // 确保连接唯一性
+    ensureUniqueConnection()
+    
+    // 生成用户ID（如果没有的话）
     const userId = 'demo-user-' + Date.now() // 临时用户ID
-    session.value = await startConversation(userId)
-
-    // 建立SSE连接
+    
+    // 建立SSE连接（不传sessionId，让后端创建新会话）
     eventSource.value = connectUserInteractionSSE(
-      session.value.sessionId,
+      null, // sessionId为null，后端会创建新会话
+      userId,
       handleSSEMessage,
       handleSSEError
     )
 
-    isConnected.value = true
-
-    // 初始化根节点
-    const rootNode: ConversationNode = {
-      id: 'root',
-      content: '您好！我是AI助手，有什么可以帮助您的吗？',
-      type: 'assistant',
-      timestamp: new Date(),
-      children: [],
-      isActive: true
-    }
-
-    conversationTree.value.set('root', rootNode)
-    currentNodeId.value = 'root'
-
-    toast.success({
-      title: '会话已建立',
-      message: '已成功连接到AI助手',
-      duration: 2000
-    })
+    // 启动活跃监控
+    updateActivity()
+    
+    console.log('SSE连接已建立，等待后端返回会话信息...')
 
   } catch (error: any) {
     console.error('初始化会话失败:', error)
+    isConnected.value = false
     toast.error({
       title: '连接失败',
       message: '无法连接到AI服务，请刷新页面重试',
@@ -180,15 +232,86 @@ const initializeSession = async () => {
 }
 
 // 处理SSE消息
-const handleSSEMessage = (response: MessageResponse) => {
+const handleSSEMessage = (response: any) => {
   console.log('收到SSE消息:', response)
+  
+  // 更新活跃时间
+  updateActivity()
 
-  // 根据消息类型处理
-  switch (response.type) {
+  // 处理连接建立消息
+  if (response.type === 'connected' || response.sessionId) {
+    // 这是连接建立时的会话信息
+    if (response.sessionId) {
+      session.value = {
+        sessionId: response.sessionId,
+        userId: response.userId || 'demo-user-' + Date.now()
+      }
+      isConnected.value = true
+      
+      console.log('会话已建立:', session.value)
+      
+      // 后端总是会返回nodeId，新会话返回'root'，已存在会话返回实际的nodeId
+      if (response.nodeId) {
+        currentNodeId.value = response.nodeId
+        console.log('会话节点ID:', response.nodeId)
+        
+        // 如果是根节点，初始化根节点
+        if (response.nodeId === 'root') {
+          const rootNode: ConversationNode = {
+            id: 'root',
+            content: '您好！我是AI助手，有什么可以帮助您的吗？',
+            type: 'assistant',
+            timestamp: new Date(),
+            children: [],
+            isActive: true
+          }
+          conversationTree.value.set('root', rootNode)
+        }
+      }
+      
+      // 如果有现有的qaTree，恢复对话树
+      if (response.qaTree) {
+        try {
+          // 这里需要根据实际的qaTree格式来解析和恢复对话树
+          console.log('恢复现有对话树:', response.qaTree)
+          // TODO: 实现qaTree的解析和恢复逻辑
+        } catch (error) {
+          console.error('恢复对话树失败:', error)
+        }
+      }
+      
+      toast.success({
+        title: '会话已建立',
+        message: response.isNewSession ? '已创建新会话' : '已连接到现有会话',
+        duration: 2000
+      })
+    }
+    return
+  }
+
+  // 处理其他类型的消息
+  // 检查是否是新的问题格式（包含question对象）
+  if (response.question && response.question.type) {
+    // 这是新的问题格式
+    currentQuestion.value = response.question
+    
+    // 更新当前节点ID为问题的parentId
+    if (response.parentId) {
+      currentNodeId.value = response.parentId
+      console.log('更新当前节点ID为:', response.parentId)
+    }
+    
+    isLoading.value = false
+    console.log('收到新格式问题:', response.question, '父节点ID:', response.parentId)
+    return
+  }
+  
+  const messageResponse = response as MessageResponse
+  switch (messageResponse.type) {
     case 'AI_QUESTION':
       // 尝试解析问题内容为问题对象
       try {
-        const questionData = JSON.parse(response.content)
+        const questionData = JSON.parse(messageResponse.content)
         if (questionData.type && ['input', 'single', 'multi', 'form'].includes(questionData.type)) {
           currentQuestion.value = questionData
           isLoading.value = false
@@ -198,13 +321,13 @@ const handleSSEMessage = (response: MessageResponse) => {
         console.log('非JSON格式的问题，作为普通消息处理')
       }
       // 如果不是问题格式，作为普通消息处理
-      addAIMessage(response.nodeId, response.content)
+      addAIMessage(messageResponse.nodeId, messageResponse.content)
       break
     case 'AI_ANSWER':  // 添加对AI_ANSWER类型的处理
-      addAIMessage(response.nodeId, response.content)
+      addAIMessage(messageResponse.nodeId, messageResponse.content)
       break
     case 'AI_SELECTION_QUESTION':
-      addAISelectionMessage(response.nodeId, response.content, response.options || [])
+      addAISelectionMessage(messageResponse.nodeId, messageResponse.content, messageResponse.options || [])
       break
     case 'USER_ANSWER':
       // 用户消息确认，通常不需要特殊处理
@@ -212,12 +335,19 @@ const handleSSEMessage = (response: MessageResponse) => {
     case 'SYSTEM_INFO':
       toast.info({
         title: '系统消息',
-        message: response.content,
+        message: messageResponse.content,
         duration: 3000
       })
       break
+    case undefined:
+      // 处理没有type字段的消息
+      console.log('收到没有type字段的消息，尝试作为普通消息处理:', response)
+      if (response.content) {
+        addAIMessage(response.nodeId || `ai_${Date.now()}`, response.content)
+      }
+      break
     default:
-      console.warn('未知的消息类型:', response.type, response)
+      console.warn('未知的消息类型:', messageResponse.type, messageResponse)
       break
   }
 }
@@ -226,6 +356,12 @@ const handleSSEMessage = (response: MessageResponse) => {
 const handleSSEError = (error: Event) => {
   console.error('SSE连接错误:', error)
   isConnected.value = false
+  
+  // 清理定时器
+  if (activityTimeout.value) {
+    clearTimeout(activityTimeout.value)
+    activityTimeout.value = null
+  }
 
   toast.error({
     title: '连接中断',
@@ -233,16 +369,25 @@ const handleSSEError = (error: Event) => {
     duration: 3000
   })
 
-  // 尝试重连
-  setTimeout(() => {
-    if (session.value && !isConnected.value) {
-      eventSource.value = connectUserInteractionSSE(
-        session.value.sessionId,
-        handleSSEMessage,
-        handleSSEError
-      )
-    }
-  }, 3000)
+  // 尝试重连（如果有会话信息）
+  if (session.value && !isInitializing.value) {
+    setTimeout(() => {
+      if (!isConnected.value && !isInitializing.value) {
+        console.log('尝试重连到现有会话:', session.value?.sessionId)
+        ensureUniqueConnection() // 确保连接唯一性
+        
+        eventSource.value = connectUserInteractionSSE(
+          session.value?.sessionId || null,
+          session.value?.userId || userId,
+          handleSSEMessage,
+          handleSSEError
+        )
+        
+        // 重新启动活跃监控
+        updateActivity()
+      }
+    }, 3000)
+  }
 }
 
 // 添加AI消息到对话树
@@ -393,8 +538,14 @@ const handleSendMessage = async (content: string) => {
     return
   }
 
+  // 更新活跃时间
+  updateActivity()
+
   // 重置当前问题状态，进入新的对话
   currentQuestion.value = null
+
+  // 后端总是返回nodeId，前端也总是传递nodeId
+  const nodeIdToSend = currentNodeId.value
 
   const userNodeId = `user_${Date.now()}`
   const userNode: ConversationNode = {
@@ -426,14 +577,14 @@ const handleSendMessage = async (content: string) => {
   isLoading.value = true
 
   try {
-    // 发送消息到后端
+    // 发送消息到后端，必须包含sessionId
     const messageRequest: MessageRequest = {
-      sessionId: session.value.sessionId,
+      sessionId: session.value.sessionId, // 必需的sessionId
       content,
       type: 'USER_TEXT'
     }
 
-    await sendUserMessage(messageRequest)
+    await sendUserMessage(messageRequest, session.value.userId, nodeIdToSend)
 
     // 消息发送成功，等待SSE返回AI回复
     console.log('消息已发送，等待AI回复...')
@@ -442,11 +593,23 @@ const handleSendMessage = async (content: string) => {
     console.error('发送消息失败:', error)
     isLoading.value = false
 
-    toast.error({
-      title: '发送失败',
-      message: error.message || '消息发送失败，请重试',
-      duration: 4000
-    })
+    // 检查是否是会话相关错误
+    if (error.message && (error.message.includes('sessionId') || error.message.includes('会话'))) {
+      toast.error({
+        title: '会话异常',
+        message: '会话已失效，请刷新页面重新建立连接',
+        duration: 5000
+      })
+      // 清理当前会话状态
+      session.value = null
+      closeConnection()
+    } else {
+      toast.error({
+        title: '发送失败',
+        message: error.message || '消息发送失败，请重试',
+        duration: 4000
+      })
+    }
 
     // 发送失败时移除用户消息节点
     conversationTree.value.delete(userNodeId)
@@ -470,16 +633,19 @@ const handleSubmitAnswer = async (answerData: any) => {
     return
   }
 
+  // 更新活跃时间
+  updateActivity()
+
   isLoading.value = true
 
   try {
-    // 构建统一答案请求
+    // 构建统一答案请求，必须包含sessionId和正确的nodeId
     const request: UnifiedAnswerRequest = {
-      sessionId: session.value.sessionId,
-      nodeId: currentNodeId.value,
+      sessionId: session.value.sessionId, // 必需的sessionId
+      nodeId: currentNodeId.value, // 当前节点ID，用于后端验证
       questionType: currentQuestion.value.type,
       answer: answerData,
-      userId: session.value.userId
+      userId: session.value.userId // 必需的userId
     }
 
     // 调用新的processAnswer接口
@@ -557,11 +723,23 @@ const handleSubmitAnswer = async (answerData: any) => {
     console.error('提交答案失败:', error)
     isLoading.value = false
 
-    toast.error({
-      title: '提交失败',
-      message: error.message || '答案提交失败，请重试',
-      duration: 4000
-    })
+    // 检查是否是会话或节点相关错误
+    if (error.message && (error.message.includes('sessionId') || error.message.includes('nodeId') || error.message.includes('会话') || error.message.includes('节点'))) {
+      toast.error({
+        title: '会话异常',
+        message: '会话或节点状态异常，请刷新页面重新建立连接',
+        duration: 5000
+      })
+      // 清理当前会话状态
+      session.value = null
+      closeConnection()
+    } else {
+      toast.error({
+        title: '提交失败',
+        message: error.message || '答案提交失败，请重试',
+        duration: 4000
+      })
+    }
   }
 }
 

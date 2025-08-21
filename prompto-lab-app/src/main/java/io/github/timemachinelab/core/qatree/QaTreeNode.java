@@ -20,7 +20,23 @@ public class QaTreeNode {
         this.children = new HashMap<>();
         this.qa = qa;
     }
+    
+    /**
+     * 使用指定ID创建节点的构造函数
+     * @param qa 问题对象
+     * @param nodeId 指定的节点ID
+     */
+    public QaTreeNode(BaseQuestion qa, String nodeId) {
+        this.id = nodeId;
+        this.children = new HashMap<>();
+        this.qa = qa;
+    }
 
+    /**
+     * @deprecated 此方法使用UUID生成节点ID，不符合自增ID规范。
+     * 请使用 QaTreeDomain.appendNode(tree, parentId, qa, session) 方法代替。
+     */
+    @Deprecated
     public void append(BaseQuestion qa) {
         QaTreeNode node = new QaTreeNode(qa);
         this.append(node);

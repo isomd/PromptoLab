@@ -76,10 +76,19 @@ export const sendAnswer = async (request: UnifiedAnswerRequest): Promise<string>
  * 建立SSE连接
  */
 export const connectUserInteractionSSE = (
+  sessionId: string | null,
+  userId: string,
   onMessage: (response: MessageResponse) => void, 
   onError?: (error: Event) => void
 ): EventSource => {
-  const url = `${API_BASE}/sse`
+  // 构建查询参数
+  const params = new URLSearchParams()
+  if (sessionId) {
+    params.append('sessionId', sessionId)
+  }
+  params.append('userId', userId)
+  
+  const url = `${API_BASE}/sse?${params.toString()}`
   const eventSource = new EventSource(url)
   
   // 监听连接建立事件
