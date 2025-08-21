@@ -57,7 +57,7 @@ export const startConversation = async (userId: string): Promise<ConversationSes
     sessionId: "",
     userId: userId,
     qaTree: null,
-    currentNodeId: '', // 由SSE连接建立时动态设置
+    currentNodeId: 'root',
     createdAt: new Date().toISOString()
   }
 }
@@ -71,7 +71,7 @@ export const startConversationDemo = async (userId: string): Promise<Conversatio
     sessionId: userId,
     userId: userId,
     qaTree: null,
-    currentNodeId: '', // 由SSE连接建立时动态设置
+    currentNodeId: 'root',
     createdAt: new Date().toISOString()
   }
 }
@@ -95,7 +95,7 @@ export const getSession = async (sessionId: string): Promise<ConversationSession
     sessionId: sessionId,
     userId: sessionId,
     qaTree: null,
-    currentNodeId: '', // 由SSE连接建立时动态设置
+    currentNodeId: 'root',
     createdAt: new Date().toISOString()
   }
 }
@@ -176,10 +176,10 @@ export const sendUserMessage = async (request: MessageRequest, userId: string, n
   // 构建统一答案请求格式
   const unifiedRequest: UnifiedAnswerRequest = {
     sessionId: request.sessionId,
-    nodeId: nodeId || undefined, // 添加nodeId参数
+    nodeId: nodeId, // 包含nodeId字段
     questionType: 'input', // 普通文本消息作为input类型
     answer: request.content,
-    userId: userId // 使用正确的userId
+    userId: userId
   }
   
   const url = `${USER_INTERACTION_BASE}/message`
@@ -213,12 +213,14 @@ export const processAnswer = async (request: UnifiedAnswerRequest): Promise<void
  * 建立用户交互SSE连接
  * 对接后端的用户交互SSE接口
  */
-export const connectUserInteractionSSE = (sessionId: string | null, userId: string, onMessage: (response: MessageResponse) => void, onError?: (error: Event) => void): EventSource => {
+export const connectUserInteractionSSE = (sessionId: string | null, userId: string, onMessage: (response: any) => void, onError?: (error: Event) => void): EventSource => {
+  // 构建查询参数
   const params = new URLSearchParams()
   if (sessionId) {
     params.append('sessionId', sessionId)
   }
   params.append('userId', userId)
+  
   const url = `${USER_INTERACTION_BASE}/sse?${params.toString()}`
   const eventSource = new EventSource(url)
 
@@ -226,10 +228,13 @@ export const connectUserInteractionSSE = (sessionId: string | null, userId: stri
   eventSource.addEventListener('connected', (event: MessageEvent) => {
     console.log('用户交互SSE连接已建立:', event.data)
     try {
-      const response = JSON.parse(event.data)
-      onMessage(response)
+      // 解析连接数据并传递给onMessage回调
+      const connectionData = JSON.parse(event.data)
+      onMessage(connectionData)
     } catch (error) {
-      console.error('解析连接建立消息失败:', error)
+      console.error('解析连接数据失败:', error)
+      // 如果解析失败，传递原始数据
+      onMessage({ type: 'connected', data: event.data })
     }
   })
 
@@ -251,6 +256,28 @@ export const connectUserInteractionSSE = (sessionId: string | null, userId: stri
   }
 
   return eventSource
+}
+
+/**
+ * 重试请求接口
+ * 对接后端的retry接口
+ */
+export interface RetryRequest {
+  nodeId: string
+  sessionId: string
+  whyretry: string
+}
+
+export const retryQuestion = async (request: RetryRequest): Promise<void> => {
+  const url = `${USER_INTERACTION_BASE}/retry`
+  await apiRequest(url, {
+    method: 'POST',
+    body: JSON.stringify(request),
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    requireAuth: false
+  })
 }
 
 /**

@@ -183,10 +183,20 @@
         </button>
         
         <button 
+          @click="retryQuestion"
+          :disabled="isLoading"
+          class="retry-btn"
+          title="重新生成这个问题"
+        >
+          <span class="btn-icon">🔄</span>
+          <span class="btn-text">重试问题</span>
+        </button>
+        
+        <button 
           @click="resetQuestion"
           class="reset-btn"
         >
-          <span class="btn-icon">🔄</span>
+          <span class="btn-icon">🏠</span>
           <span class="btn-text">重新开始</span>
         </button>
       </div>
@@ -198,6 +208,29 @@
       :type="loadingType"
       :duration="3000"
     />
+    
+    <!-- 重试原因输入对话框 -->
+    <div v-if="showRetryDialog" class="retry-dialog-overlay">
+      <div class="retry-dialog">
+        <div class="retry-dialog-header">
+          <h3>重试原因</h3>
+          <button @click="cancelRetry" class="close-btn">×</button>
+        </div>
+        <div class="retry-dialog-content">
+          <p>请说明为什么要重新生成这个问题：</p>
+          <textarea 
+            v-model="retryReason" 
+            placeholder="例如：问题不够具体、需要更详细的选项、问题与我的需求不符等..."
+            class="retry-reason-input"
+            rows="4"
+          ></textarea>
+        </div>
+        <div class="retry-dialog-actions">
+          <button @click="cancelRetry" class="cancel-btn">取消</button>
+          <button @click="confirmRetry" class="confirm-btn">确认重试</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -264,6 +297,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   sendMessage: [content: string]
   submitAnswer: [answer: any]
+  retryQuestion: [reason: string]
 }>()
 
 // 响应式数据
@@ -438,6 +472,28 @@ const submitAnswer = () => {
   }
   
   emit('submitAnswer', answerData)
+}
+
+// 重试相关状态
+const showRetryDialog = ref(false)
+const retryReason = ref('')
+
+const retryQuestion = () => {
+  // 显示重试原因输入对话框
+  showRetryDialog.value = true
+  retryReason.value = ''
+}
+
+const confirmRetry = () => {
+  // 发送重试事件，包含用户输入的原因
+  emit('retryQuestion', retryReason.value || '用户要求重新生成问题')
+  showRetryDialog.value = false
+  retryReason.value = ''
+}
+
+const cancelRetry = () => {
+  showRetryDialog.value = false
+  retryReason.value = ''
 }
 
 const resetQuestion = () => {
@@ -1205,6 +1261,35 @@ const resetQuestion = () => {
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
+.retry-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background: rgba(15, 15, 15, 0.8);
+  border: 1px solid rgba(255, 165, 0, 0.2);
+  border-radius: 16px;
+  color: #ffb366;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.retry-btn:hover {
+  border-color: rgba(255, 165, 0, 0.4);
+  color: #ffffff;
+  transform: translateY(-1px);
+  background: rgba(255, 165, 0, 0.1);
+}
+
+.retry-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .reset-btn {
   display: flex;
   align-items: center;
@@ -1386,5 +1471,144 @@ const resetQuestion = () => {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* 重试对话框样式 */
+.retry-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+.retry-dialog {
+  background: linear-gradient(135deg, rgba(15, 15, 15, 0.95), rgba(25, 25, 25, 0.95));
+  border: 1px solid rgba(255, 165, 0, 0.3);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.retry-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 165, 0, 0.2);
+}
+
+.retry-dialog-header h3 {
+  margin: 0;
+  color: #ffb366;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 165, 0, 0.1);
+  color: #ffb366;
+}
+
+.retry-dialog-content {
+  padding: 24px;
+}
+
+.retry-dialog-content p {
+  margin: 0 0 16px 0;
+  color: #e8e8e8;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.retry-reason-input {
+  width: 100%;
+  background: rgba(10, 10, 10, 0.8);
+  border: 1px solid rgba(255, 165, 0, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: #e8e8e8;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+  transition: all 0.3s ease;
+}
+
+.retry-reason-input:focus {
+  outline: none;
+  border-color: rgba(255, 165, 0, 0.6);
+  box-shadow: 0 0 0 2px rgba(255, 165, 0, 0.1);
+}
+
+.retry-reason-input::placeholder {
+  color: #666;
+}
+
+.retry-dialog-actions {
+  display: flex;
+  gap: 12px;
+  padding: 0 24px 24px 24px;
+  justify-content: flex-end;
+}
+
+.cancel-btn, .confirm-btn {
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid;
+}
+
+.cancel-btn {
+  background: rgba(128, 128, 128, 0.1);
+  border-color: rgba(128, 128, 128, 0.3);
+  color: #cccccc;
+}
+
+.cancel-btn:hover {
+  background: rgba(128, 128, 128, 0.2);
+  border-color: rgba(128, 128, 128, 0.5);
+  color: #ffffff;
+}
+
+.confirm-btn {
+  background: linear-gradient(135deg, rgba(255, 165, 0, 0.2), rgba(255, 140, 0, 0.2));
+  border-color: rgba(255, 165, 0, 0.5);
+  color: #ffb366;
+}
+
+.confirm-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 165, 0, 0.3), rgba(255, 140, 0, 0.3));
+  border-color: rgba(255, 165, 0, 0.7);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(255, 165, 0, 0.3);
 }
 </style>

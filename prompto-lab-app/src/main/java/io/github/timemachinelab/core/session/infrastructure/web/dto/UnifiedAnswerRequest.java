@@ -25,6 +25,7 @@ public class UnifiedAnswerRequest {
     /**
      * 会话ID
      */
+    @NotBlank(message = "会话ID不能为空")
     private String sessionId;
     
     /**

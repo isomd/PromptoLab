@@ -9,6 +9,8 @@ import io.github.timemachinelab.core.qatree.QaTree;
 import io.github.timemachinelab.core.qatree.QaTreeDomain;
 import io.github.timemachinelab.core.session.application.MessageProcessingService;
 import io.github.timemachinelab.core.session.application.SessionManagementService;
+import io.github.timemachinelab.core.session.application.ConversationService;
+import io.github.timemachinelab.core.session.application.SseNotificationService;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
 import io.github.timemachinelab.core.session.infrastructure.web.dto.UnifiedAnswerRequest;
 import io.github.timemachinelab.util.QaTreeSerializeUtil;
@@ -32,6 +34,10 @@ public class DefaultMessageProcessingService implements MessageProcessingService
     SessionManagementService sessionManagementService;
     @Resource
     QaTreeDomain qaTreeDomain;
+    @Resource
+    ConversationService conversationService;
+    @Resource
+    SseNotificationService sseNotificationService;
 
     @Override
     public String processAnswer(UnifiedAnswerRequest request) {
@@ -152,5 +158,52 @@ public class DefaultMessageProcessingService implements MessageProcessingService
                 return false;
         }
     }
-
-}
+    
+    @Override
+    public String processRetryMessage(String sessionId, String nodeId, String whyRetry, ConversationSession conversationSession) {
+        try {
+            // 构建重试消息的JSON格式
+            JSONObject retryInput = new JSONObject();
+            retryInput.put("action", "retry");
+            retryInput.put("nodeId", nodeId);
+            retryInput.put("whyRetry", whyRetry != null ? whyRetry : "用户要求重新生成问题");
+            
+            // 获取节点的问题内容
+            String preQuestion = sessionManagementService.getNodeQuestion(sessionId, nodeId);
+            if (preQuestion != null) {
+                retryInput.put("preQuestion", preQuestion);
+            }
+            
+            JSONObject object = new JSONObject();
+            object.put("prompt", AllPrompt.GLOBAL_PROMPT);
+            object.put("tree", QaTreeSerializeUtil.serialize(conversationSession.getQaTree()));
+            object.put("input", retryInput.toString());
+            
+            log.info("处理重试消息 - 会话: {}, 节点: {}, 原因: {}", sessionId, nodeId, whyRetry);
+            return object.toString();
+            
+        } catch (JsonProcessingException e) {
+             log.error("处理重试消息失败 - 会话: {}, 错误: {}", sessionId, e.getMessage(), e);
+             throw new RuntimeException("重试消息处理失败", e);
+         }
+     }
+     
+     @Override
+     public void processAndSendMessage(ConversationSession session, String processedMessage) {
+         try {
+             log.info("发送消息给AI服务 - 会话: {}, 用户: {}", session.getSessionId(), session.getUserId());
+             
+             conversationService.processUserMessage(
+                     session.getUserId(),
+                     processedMessage,
+                     response -> sseNotificationService.sendSseMessage(session.getSessionId(), response)
+             );
+             
+             log.info("消息发送成功 - 会话: {}", session.getSessionId());
+         } catch (Exception e) {
+             log.error("发送消息失败 - 会话: {}, 错误: {}", session.getSessionId(), e.getMessage(), e);
+             throw new RuntimeException("消息发送失败: " + e.getMessage(), e);
+         }
+     }
+ 
+ }

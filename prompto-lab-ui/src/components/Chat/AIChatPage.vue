@@ -41,6 +41,7 @@
         :is-loading="isLoading"
         @send-message="handleSendMessage"
         @submit-answer="handleSubmitAnswer"
+        @retry-question="handleRetryQuestion"
       />
     </div>
 
@@ -77,7 +78,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import QuestionRenderer from '../QuestionRenderer.vue'
 import ChatTree from './ChatTree.vue'
 import MindMapTree from './MindMapTree.vue'
-import { startConversation, sendMessage, sendUserMessage, connectSSE, closeSSE, processAnswer, connectUserInteractionSSE, type MessageRequest, type MessageResponse, type ConversationSession, type UnifiedAnswerRequest, type FormAnswerItem } from '@/services/conversationApi'
+import { startConversation, sendMessage, sendUserMessage, connectSSE, closeSSE, processAnswer, connectUserInteractionSSE, retryQuestion, type MessageRequest, type MessageResponse, type ConversationSession, type UnifiedAnswerRequest, type FormAnswerItem, type RetryRequest } from '@/services/conversationApi'
 import { toast } from '@/utils/toast'
 
 interface Message {
@@ -416,7 +417,7 @@ const handleSSEError = (error: Event) => {
         
         eventSource.value = connectUserInteractionSSE(
           session.value?.sessionId || null,
-          session.value?.userId || userId,
+          session.value?.userId || 'demo-user-' + Date.now(),
           handleSSEMessage,
           handleSSEError
         )
@@ -656,6 +657,65 @@ const handleSendMessage = async (content: string) => {
       if (index > -1) {
         currentNode.children.splice(index, 1)
       }
+    }
+  }
+}
+
+// 处理重试问题
+const handleRetryQuestion = async (reason: string = '用户要求重新生成问题') => {
+  if (!session.value || !currentQuestion.value) {
+    toast.error({
+      title: '重试失败',
+      message: '会话未建立或没有当前问题',
+      duration: 3000
+    })
+    return
+  }
+
+  // 更新活跃时间
+  updateActivity()
+
+  isLoading.value = true
+
+  try {
+    // 构建重试请求
+    const retryRequest: RetryRequest = {
+      sessionId: session.value.sessionId,
+      nodeId: currentNodeId.value, // 当前问题节点ID
+      whyretry: reason
+    }
+
+    // 调用重试接口
+    await retryQuestion(retryRequest)
+
+    toast.success({
+      title: '重试成功',
+      message: '正在重新生成问题，请稍候',
+      duration: 2000
+    })
+
+    console.log('重试请求已发送，等待AI重新生成问题...')
+
+  } catch (error: any) {
+    console.error('重试失败:', error)
+    isLoading.value = false
+
+    // 检查是否是会话相关错误
+    if (error.message && (error.message.includes('sessionId') || error.message.includes('nodeId') || error.message.includes('会话') || error.message.includes('节点'))) {
+      toast.error({
+        title: '会话异常',
+        message: '会话或节点状态异常，请刷新页面重新建立连接',
+        duration: 5000
+      })
+      // 清理当前会话状态
+      session.value = null
+      closeConnection()
+    } else {
+      toast.error({
+        title: '重试失败',
+        message: error.message || '重试请求失败，请重试',
+        duration: 4000
+      })
     }
   }
 }

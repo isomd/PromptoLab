@@ -220,6 +220,72 @@ public class SessionManagementService {
     }
     
     /**
+     * 获取指定会话中节点的问题内容
+     * 
+     * @param sessionId 会话ID
+     * @param nodeId 节点ID
+     * @return 问题内容，如果节点不存在或问题为空则返回null
+     */
+    public String getNodeQuestion(String sessionId, String nodeId) {
+        ConversationSession session = sessions.get(sessionId);
+        if (session == null) {
+            log.warn("会话不存在: {}", sessionId);
+            return null;
+        }
+        
+        QaTree tree = session.getQaTree();
+        return qaTreeDomain.getNodeQuestion(tree, nodeId);
+    }
+    
+    /**
+     * 验证指定会话中的节点是否存在
+     * 
+     * @param sessionId 会话ID
+     * @param nodeId 节点ID
+     * @return 节点是否存在
+     */
+    public boolean validateNodeExists(String sessionId, String nodeId) {
+        ConversationSession session = sessions.get(sessionId);
+        if (session == null) {
+            log.warn("会话不存在: {}", sessionId);
+            return false;
+        }
+        
+        QaTree tree = session.getQaTree();
+        return qaTreeDomain.nodeExists(tree, nodeId);
+    }
+    
+    /**
+     * 移除指定会话中的节点
+     * 
+     * @param sessionId 会话ID
+     * @param nodeId 节点ID
+     * @return 是否移除成功
+     */
+    public boolean removeNode(String sessionId, String nodeId) {
+        ConversationSession session = sessions.get(sessionId);
+        if (session == null) {
+            log.warn("会话不存在: {}", sessionId);
+            return false;
+        }
+        
+        QaTree tree = session.getQaTree();
+        if (tree == null) {
+            log.warn("会话的QaTree不存在: {}", sessionId);
+            return false;
+        }
+        
+        boolean removed = qaTreeDomain.removeNode(tree, nodeId);
+        if (removed) {
+            log.info("成功移除节点 - 会话: {}, 节点: {}", sessionId, nodeId);
+        } else {
+            log.warn("移除节点失败 - 会话: {}, 节点: {}", sessionId, nodeId);
+        }
+        
+        return removed;
+    }
+    
+    /**
      * 获取会话统计信息
      */
     public Map<String, Object> getSessionStats() {

@@ -2,24 +2,14 @@ package io.github.timemachinelab.core.session.application;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import io.github.timemachinelab.core.qatree.QaTree;
-import io.github.timemachinelab.core.qatree.QaTreeDomain;
-import io.github.timemachinelab.core.qatree.QaTreeNode;
-import io.github.timemachinelab.core.question.BaseQuestion;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
 import io.github.timemachinelab.core.session.infrastructure.ai.QuestionGenerationOperation;
-import io.github.timemachinelab.core.session.infrastructure.web.dto.MessageResponse;
-import io.github.timemachinelab.core.session.infrastructure.ai.ConversationOperation;
 import io.github.timemachinelab.sfchain.core.AIService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
-import java.util.List;
-import java.util.ArrayList;
 import java.util.function.Consumer;
 
 @Service
@@ -31,7 +21,6 @@ public class ConversationService {
     private final AIService aiService;
     @Resource
     private SessionManagementService sessionManagementService;
-    private final QaTreeDomain qaTreeDomain;
 
     
     public void processUserMessage(String userId, String userMessage, Consumer<QuestionGenerationOperation.QuestionGenerationResponse> sseCallback) {
