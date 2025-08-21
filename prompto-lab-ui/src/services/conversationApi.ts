@@ -172,13 +172,14 @@ export const connectSSE = (sessionId: string, onMessage: (response: MessageRespo
  * 发送用户消息到用户交互接口
  * 对接后端的用户交互消息接口
  */
-export const sendUserMessage = async (request: MessageRequest): Promise<void> => {
+export const sendUserMessage = async (request: MessageRequest, userId: string, nodeId?: string): Promise<void> => {
   // 构建统一答案请求格式
   const unifiedRequest: UnifiedAnswerRequest = {
     sessionId: request.sessionId,
+    nodeId: nodeId || undefined, // 添加nodeId参数
     questionType: 'input', // 普通文本消息作为input类型
     answer: request.content,
-    userId: request.sessionId // 使用sessionId作为userId
+    userId: userId // 使用正确的userId
   }
   
   const url = `${USER_INTERACTION_BASE}/message`
@@ -212,13 +213,24 @@ export const processAnswer = async (request: UnifiedAnswerRequest): Promise<void
  * 建立用户交互SSE连接
  * 对接后端的用户交互SSE接口
  */
-export const connectUserInteractionSSE = (sessionId: string, onMessage: (response: MessageResponse) => void, onError?: (error: Event) => void): EventSource => {
-  const url = `${USER_INTERACTION_BASE}/sse/${sessionId}`
+export const connectUserInteractionSSE = (sessionId: string | null, userId: string, onMessage: (response: MessageResponse) => void, onError?: (error: Event) => void): EventSource => {
+  const params = new URLSearchParams()
+  if (sessionId) {
+    params.append('sessionId', sessionId)
+  }
+  params.append('userId', userId)
+  const url = `${USER_INTERACTION_BASE}/sse?${params.toString()}`
   const eventSource = new EventSource(url)
 
   // 监听连接建立事件
   eventSource.addEventListener('connected', (event: MessageEvent) => {
     console.log('用户交互SSE连接已建立:', event.data)
+    try {
+      const response = JSON.parse(event.data)
+      onMessage(response)
+    } catch (error) {
+      console.error('解析连接建立消息失败:', error)
+    }
   })
 
   // 监听消息事件
