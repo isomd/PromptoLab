@@ -1,45 +1,54 @@
 package io.github.timemachinelab.core.session.domain.entity;
 
+import io.github.timemachinelab.core.qatree.*;
+import lombok.Data;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
-import java.util.List;
-import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
-@Getter
+@Data
 public class ConversationSession {
     
     private final String sessionId;
     private final String userId;
+    /**
+     * -- SETTER --
+     *  设置QaTree（仅用于初始化）
+     *
+     * @param qaTree QA树对象
+     */
+    @Setter
+    private QaTree qaTree; // 移除final，允许后续设置
     private final LocalDateTime createTime;
     private LocalDateTime updateTime;
-    private final List<ConversationMessage> messages;
     
-    public ConversationSession(String userId) {
-        this.sessionId = UUID.randomUUID().toString();
+    // 节点ID自增计数器，从1开始
+    private final AtomicInteger nodeIdCounter = new AtomicInteger(0);
+    
+    public ConversationSession(String userId, String sessionId, QaTree qaTree) {
+        this.qaTree = qaTree;
+        this.sessionId = sessionId;
         this.userId = userId;
         this.createTime = LocalDateTime.now();
         this.updateTime = LocalDateTime.now();
-        this.messages = new ArrayList<>();
     }
     
-    public void addMessage(String content, String role) {
-        ConversationMessage message = new ConversationMessage(content, role);
-        this.messages.add(message);
-        this.updateTime = LocalDateTime.now();
+    /**
+     * 获取下一个节点ID（自增）
+     * @return 自增的节点ID字符串
+     */
+    public String getNextNodeId() {
+        return String.valueOf(nodeIdCounter.incrementAndGet());
     }
     
-    @Getter
-    public static class ConversationMessage {
-        private final String content;
-        private final String role; // "user" or "assistant"
-        private final LocalDateTime timestamp;
-        
-        public ConversationMessage(String content, String role) {
-            this.content = content;
-            this.role = role;
-            this.timestamp = LocalDateTime.now();
-        }
+    /**
+     * 获取节点ID计数器
+     * @return 节点ID计数器
+     */
+    public AtomicInteger getNodeIdCounter() {
+        return nodeIdCounter;
     }
 }

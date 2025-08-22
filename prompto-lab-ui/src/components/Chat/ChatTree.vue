@@ -78,7 +78,13 @@ const emit = defineEmits<{
 }>()
 
 const rootNode = computed(() => {
-  return props.conversationTree.get('root')
+  // 动态查找根节点（没有parentId的节点）
+  for (const [id, node] of props.conversationTree) {
+    if (!node.parentId) {
+      return node
+    }
+  }
+  return null
 })
 </script>
 

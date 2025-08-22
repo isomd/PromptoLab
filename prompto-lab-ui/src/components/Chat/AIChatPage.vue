@@ -9,7 +9,7 @@
         <div class="particle" v-for="i in 15" :key="i"></div>
       </div>
     </div>
-    
+
     <!-- 左侧栏 -->
     <div class="left-sidebar">
       <div class="sidebar-content">
@@ -33,19 +33,20 @@
         </div>
       </div>
     </div>
-    
-    <!-- 中间对话主页面 -->
+
+    <!-- 中间问答主页面 -->
     <div class="main-content" :style="{ width: mainContentWidth + 'px' }">
-      <ChatMain 
-        :messages="currentBranchMessages"
+      <QuestionRenderer
+        :current-question="currentQuestion"
         :is-loading="isLoading"
-        :streaming-node-id="streamingNodeId"
         @send-message="handleSendMessage"
+        @submit-answer="handleSubmitAnswer"
+        @retry-question="handleRetryQuestion"
       />
     </div>
-    
+
     <!-- 可拖拽的分隔条 -->
-    <div 
+    <div
       class="resizer"
       @mousedown="startResize"
       @touchstart="startResize"
@@ -59,10 +60,10 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 右侧思维导图 -->
     <div class="right-sidebar" :style="{ width: rightSidebarWidth + 'px' }">
-      <MindMapTree 
+      <MindMapTree
         :conversation-tree="conversationTree"
         :current-node-id="currentNodeId"
         @node-selected="handleNodeSelected"
@@ -74,10 +75,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import ChatMain from './ChatMain.vue'
+import QuestionRenderer from '../QuestionRenderer.vue'
 import ChatTree from './ChatTree.vue'
 import MindMapTree from './MindMapTree.vue'
-import { startConversation, sendMessage, connectSSE, closeSSE, type MessageRequest, type MessageResponse, type ConversationSession } from '@/services/conversationApi'
+import { startConversation, sendMessage, sendUserMessage, connectSSE, closeSSE, processAnswer, connectUserInteractionSSE, retryQuestion, type MessageRequest, type MessageResponse, type ConversationSession, type UnifiedAnswerRequest, type FormAnswerItem, type RetryRequest } from '@/services/conversationApi'
 import { toast } from '@/utils/toast'
 
 interface Message {
@@ -114,62 +115,113 @@ const isResizing = ref(false)
 const startX = ref(0)
 const startRightWidth = ref(0)
 
-// 添加流式消息状态管理
-const streamingNodeId = ref<string>('')
-const streamingContent = ref<string>('')
-
 // 会话状态
 const session = ref<ConversationSession | null>(null)
 const eventSource = ref<EventSource | null>(null)
 const isConnected = ref(false)
 const isInitializing = ref(false)
 
+// SSE连接管理
+const connectionTimeout = ref<NodeJS.Timeout | null>(null)
+const activityTimeout = ref<NodeJS.Timeout | null>(null)
+const ACTIVITY_TIMEOUT = 5 * 60 * 1000 // 5分钟不活跃超时
+const lastActivityTime = ref<number>(Date.now())
+
 // 对话树存储所有节点
 const conversationTree = ref<Map<string, ConversationNode>>(new Map())
 const currentNodeId = ref<string>('')
 const isLoading = ref(false)
 
+// 问题状态管理
+const currentQuestion = ref<any>(null)
+
+// 确保SSE连接唯一性
+const ensureUniqueConnection = () => {
+  if (eventSource.value) {
+    console.log('关闭现有SSE连接以确保唯一性')
+    closeSSE(eventSource.value)
+    eventSource.value = null
+    isConnected.value = false
+  }
+  
+  // 清理定时器
+  if (connectionTimeout.value) {
+    clearTimeout(connectionTimeout.value)
+    connectionTimeout.value = null
+  }
+  if (activityTimeout.value) {
+    clearTimeout(activityTimeout.value)
+    activityTimeout.value = null
+  }
+}
+
+// 更新活跃时间
+const updateActivity = () => {
+  lastActivityTime.value = Date.now()
+  
+  // 重置活跃超时定时器
+  if (activityTimeout.value) {
+    clearTimeout(activityTimeout.value)
+  }
+  
+  activityTimeout.value = setTimeout(() => {
+    console.log('SSE连接因不活跃超时，自动关闭')
+    closeConnection()
+    toast.info({
+      title: '连接已关闭',
+      message: '由于长时间无活动，连接已自动关闭',
+      duration: 3000
+    })
+  }, ACTIVITY_TIMEOUT)
+}
+
+// 关闭连接
+const closeConnection = () => {
+  if (eventSource.value) {
+    closeSSE(eventSource.value)
+    eventSource.value = null
+  }
+  isConnected.value = false
+  
+  if (connectionTimeout.value) {
+    clearTimeout(connectionTimeout.value)
+    connectionTimeout.value = null
+  }
+  if (activityTimeout.value) {
+    clearTimeout(activityTimeout.value)
+    activityTimeout.value = null
+  }
+}
+
 // 初始化会话
 const initializeSession = async () => {
   if (isInitializing.value) return
-  
+
   isInitializing.value = true
-  
+
   try {
-    // 创建新会话
-    const userId = 'demo-user-' + Date.now() // 临时用户ID
-    session.value = await startConversation(userId)
+    // 确保连接唯一性
+    ensureUniqueConnection()
     
-    // 建立SSE连接
-    eventSource.value = connectSSE(
-      session.value.sessionId,
+    // 生成用户ID（如果没有的话）
+    const userId = 'demo-user-' + Date.now() // 临时用户ID
+    
+    // 建立SSE连接（不传sessionId，让后端创建新会话）
+    eventSource.value = connectUserInteractionSSE(
+      null, // sessionId为null，后端会创建新会话
+      userId,
       handleSSEMessage,
       handleSSEError
     )
+
+    // 启动活跃监控
+    updateActivity()
     
-    isConnected.value = true
-    
-    // 初始化根节点
-    const rootNode: ConversationNode = {
-      id: 'root',
-      content: '您好！我是AI助手，有什么可以帮助您的吗？',
-      type: 'assistant',
-      timestamp: new Date(),
-      children: [],
-      isActive: true
-    }
-    
-    conversationTree.value.set('root', rootNode)
-    currentNodeId.value = 'root'
-    
-    toast.success({
-      title: '会话已建立',
-      message: '已成功连接到AI助手',
-      duration: 2000
-    })
-    
+    console.log('SSE连接已建立，等待后端返回会话信息...')
+
   } catch (error: any) {
     console.error('初始化会话失败:', error)
+    isConnected.value = false
     toast.error({
       title: '连接失败',
       message: '无法连接到AI服务，请刷新页面重试',
@@ -181,73 +233,161 @@ const initializeSession = async () => {
 }
 
 // 处理SSE消息
-const handleSSEMessage = (response: MessageResponse) => {
+const handleSSEMessage = (response: any) => {
   console.log('收到SSE消息:', response)
   
-  switch (response.type) {
-    case 'AI_QUESTION':
-    case 'AI_ANSWER':
-      addAIMessage(response.nodeId, response.content)
-      break
-    case 'AI_STREAM_START':
-      // 开始流式响应
-      startStreamingMessage(response.nodeId)
-      break
-    case 'AI_STREAM_CHUNK':
-      // 接收流式内容片段
-      appendStreamingContent(response.nodeId, response.content)
-      break
-    case 'AI_STREAM_END':
-      // 结束流式响应
-      finishStreamingMessage(response.nodeId)
-      break
-    // ... 其他case保持不变
-  }
-}
+  // 更新活跃时间
+  updateActivity()
 
-// 开始流式消息
-const startStreamingMessage = (nodeId: string) => {
-  streamingNodeId.value = nodeId
-  streamingContent.value = ''
-  
-  const aiNode: ConversationNode = {
-    id: nodeId,
-    content: '',
-    type: 'assistant',
-    timestamp: new Date(),
-    parentId: currentNodeId.value,
-    children: [],
-    isActive: true
-  }
-  
-  const currentNode = conversationTree.value.get(currentNodeId.value)
-  if (currentNode) {
-    currentNode.children.push(nodeId)
-  }
-  
-  conversationTree.value.set(nodeId, aiNode)
-  currentNodeId.value = nodeId
-  isLoading.value = false
-}
-
-// 追加流式内容
-const appendStreamingContent = (nodeId: string, chunk: string) => {
-  if (streamingNodeId.value === nodeId) {
-    streamingContent.value += chunk
-    
-    // 更新节点内容
-    const node = conversationTree.value.get(nodeId)
-    if (node) {
-      node.content = streamingContent.value
+  // 处理连接建立消息
+  if (response.type === 'connected' || response.sessionId) {
+    // 这是连接建立时的会话信息
+    if (response.sessionId) {
+      session.value = {
+        sessionId: response.sessionId,
+        userId: response.userId || 'demo-user-' + Date.now()
+      }
+      isConnected.value = true
+      
+      console.log('会话已建立:', session.value)
+      
+      // 后端总是会返回nodeId，新会话返回'1'，已存在会话返回实际的nodeId
+      if (response.nodeId) {
+        currentNodeId.value = response.nodeId
+        console.log('会话节点ID:', response.nodeId)
+        
+        // 如果是根节点，初始化根节点
+        if (response.nodeId === '1') {
+          const rootNode: ConversationNode = {
+            id: '1',
+            content: '您好！我是AI助手，有什么可以帮助您的吗？',
+            type: 'assistant',
+            timestamp: new Date(),
+            children: [],
+            isActive: true
+          }
+          conversationTree.value.set('1', rootNode)
+        }
+      }
+      
+      // 如果有现有的qaTree，恢复对话树
+      if (response.qaTree) {
+        try {
+          // 这里需要根据实际的qaTree格式来解析和恢复对话树
+          console.log('恢复现有对话树:', response.qaTree)
+          // TODO: 实现qaTree的解析和恢复逻辑
+        } catch (error) {
+          console.error('恢复对话树失败:', error)
+        }
+      }
+      
+      toast.success({
+        title: '会话已建立',
+        message: response.isNewSession ? '已创建新会话' : '已连接到现有会话',
+        duration: 2000
+      })
     }
+    return
   }
-}
 
-// 完成流式消息
-const finishStreamingMessage = (nodeId: string) => {
-  if (streamingNodeId.value === nodeId) {
-    streamingNodeId.value = ''
-    streamingContent.value = ''
+  // 处理其他类型的消息
+  // 检查是否是新的问题格式（包含question对象）
+  if (response.question && response.question.type) {
+    // 这是新的问题格式
+    currentQuestion.value = response.question
+    
+    // 更新当前节点ID为新创建的问题节点ID
+    if (response.currentNodeId) {
+      // 创建问题节点并添加到对话树
+      const questionContent = `${response.question.question}${response.question.desc ? '\n' + response.question.desc : ''}`
+      
+      const questionNode: ConversationNode = {
+        id: response.currentNodeId,
+        content: questionContent,
+        type: 'assistant',
+        timestamp: new Date(),
+        parentId: response.parentNodeId,
+        children: [],
+        isActive: true
+      }
+      
+      // 更新父节点的children数组
+      if (response.parentNodeId) {
+        const parentNode = conversationTree.value.get(response.parentNodeId)
+        if (parentNode) {
+          // 将父节点的其他子节点设为非活跃状态
+          parentNode.children.forEach(childId => {
+            const childNode = conversationTree.value.get(childId)
+            if (childNode) {
+              setNodeAndDescendantsInactive(childId)
+            }
+          })
+          parentNode.children.push(response.currentNodeId)
+        }
+      }
+      
+      // 添加新问题节点到对话树
+      conversationTree.value.set(response.currentNodeId, questionNode)
+      currentNodeId.value = response.currentNodeId
+      console.log('更新当前节点ID为:', response.currentNodeId)
+      
+      // 在聊天界面显示问题内容
+      addAIMessage(response.currentNodeId, questionContent)
+    }
+    
+    // 记录父节点ID，用于后续构建树形关系图
+    if (response.parentNodeId) {
+      console.log('父节点ID:', response.parentNodeId)
+    }
+    
+    isLoading.value = false
+    console.log('收到新格式问题:', response.question, '当前节点ID:', response.currentNodeId, '父节点ID:', response.parentNodeId)
+    return
+  }
+  
+  const messageResponse = response as MessageResponse
+  switch (messageResponse.type) {
+    case 'AI_QUESTION':
+      // 尝试解析问题内容为问题对象
+      try {
+        const questionData = JSON.parse(messageResponse.content)
+        if (questionData.type && ['input', 'single', 'multi', 'form'].includes(questionData.type)) {
+          currentQuestion.value = questionData
+          isLoading.value = false
+          break
+        }
+      } catch (e) {
+        console.log('非JSON格式的问题，作为普通消息处理')
+      }
+      // 如果不是问题格式，作为普通消息处理
+      addAIMessage(messageResponse.nodeId, messageResponse.content)
+      break
+    case 'AI_ANSWER':  // 添加对AI_ANSWER类型的处理
+      addAIMessage(messageResponse.nodeId, messageResponse.content)
+      break
+    case 'AI_SELECTION_QUESTION':
+      addAISelectionMessage(messageResponse.nodeId, messageResponse.content, messageResponse.options || [])
+      break
+    case 'USER_ANSWER':
+      // 用户消息确认，通常不需要特殊处理
+      break
+    case 'SYSTEM_INFO':
+      toast.info({
+        title: '系统消息',
+        message: messageResponse.content,
+        duration: 3000
+      })
+      break
+    case undefined:
+      // 处理没有type字段的消息
+      console.log('收到没有type字段的消息，尝试作为普通消息处理:', response)
+      if (response.content) {
+        addAIMessage(response.nodeId || `ai_${Date.now()}`, response.content)
+      }
+      break
+    default:
+      console.warn('未知的消息类型:', messageResponse.type, messageResponse)
+      break
   }
 }
 
@@ -256,32 +396,41 @@ const handleSSEError = (error: Event) => {
   console.error('SSE连接错误:', error)
   isConnected.value = false
   
+  // 清理定时器
+  if (activityTimeout.value) {
+    clearTimeout(activityTimeout.value)
+    activityTimeout.value = null
+  }
+
   toast.error({
     title: '连接中断',
     message: '与AI助手的连接已中断，正在尝试重连...',
     duration: 3000
   })
-  
-  // 尝试重连
-  setTimeout(() => {
-    if (session.value && !isConnected.value) {
-      eventSource.value = connectSSE(
-        session.value.sessionId,
-        handleSSEMessage,
-        handleSSEError
-      )
-    }
-  }, 3000)
+
+  // 尝试重连（如果有会话信息）
+  if (session.value && !isInitializing.value) {
+    setTimeout(() => {
+      if (!isConnected.value && !isInitializing.value) {
+        console.log('尝试重连到现有会话:', session.value?.sessionId)
+        ensureUniqueConnection() // 确保连接唯一性
+        
+        eventSource.value = connectUserInteractionSSE(
+          session.value?.sessionId || null,
+          session.value?.userId || 'demo-user-' + Date.now(),
+          handleSSEMessage,
+          handleSSEError
+        )
+        
+        // 重新启动活跃监控
+        updateActivity()
+      }
+    }, 3000)
+  }
 }
 
 // 添加AI消息到对话树
-const addAIMessage = (nodeId: string, content: string, isStreaming = false) => {
-  const existingNode = conversationTree.value.get(nodeId)
-  if (existingNode && isStreaming) {
-    // 如果是流式更新，只更新内容
-    existingNode.content = content
-    return
-  }
+const addAIMessage = (nodeId: string, content: string) => {
   const aiNode: ConversationNode = {
     id: nodeId,
     content,
@@ -291,18 +440,17 @@ const addAIMessage = (nodeId: string, content: string, isStreaming = false) => {
     children: [],
     isActive: true
   }
-  
+
   const currentNode = conversationTree.value.get(currentNodeId.value)
   if (currentNode) {
     currentNode.children.push(nodeId)
   }
-  
+
   conversationTree.value.set(nodeId, aiNode)
   currentNodeId.value = nodeId
   isLoading.value = false
 }
 
-// 添加AI选择题消息
 const addAISelectionMessage = (nodeId: string, content: string, options: string[]) => {
   // 暂时作为普通消息处理，后续可以扩展选择题UI
   const fullContent = content + '\n\n选项：\n' + options.map((opt, idx) => `${idx + 1}. ${opt}`).join('\n')
@@ -313,23 +461,23 @@ const addAISelectionMessage = (nodeId: string, content: string, options: string[
 const currentBranchMessages = computed(() => {
   const messages: Message[] = []
   const visited = new Set<string>()
-  
+
   const buildPath = (nodeId: string): string[] => {
     const path: string[] = []
     let current = nodeId
-    
+
     while (current && !visited.has(current)) {
       visited.add(current)
       path.unshift(current)
       const node = conversationTree.value.get(current)
       current = node?.parentId || ''
     }
-    
+
     return path
   }
-  
+
   const path = buildPath(currentNodeId.value)
-  
+
   path.forEach(nodeId => {
     const node = conversationTree.value.get(nodeId)
     if (node) {
@@ -341,56 +489,56 @@ const currentBranchMessages = computed(() => {
       })
     }
   })
-  
+
   return messages
 })
 
 // 拖拽开始
 const startResize = (event: MouseEvent | TouchEvent) => {
   isResizing.value = true
-  
+
   const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
   startX.value = clientX
   startRightWidth.value = rightSidebarWidth.value
-  
+
   document.addEventListener('mousemove', handleResize)
   document.addEventListener('mouseup', stopResize)
   document.addEventListener('touchmove', handleResize)
   document.addEventListener('touchend', stopResize)
-  
+
   // 防止文本选择
   document.body.style.userSelect = 'none'
   document.body.style.cursor = 'col-resize'
-  
+
   event.preventDefault()
 }
 
 // 拖拽过程中
 const handleResize = (event: MouseEvent | TouchEvent) => {
   if (!isResizing.value) return
-  
+
   const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
   const deltaX = startX.value - clientX // 注意方向：向左拖拽为正值
   const newWidth = startRightWidth.value + deltaX
-  
+
   // 限制在最小和最大宽度之间
   rightSidebarWidth.value = Math.max(
     minRightSidebarWidth,
     Math.min(maxRightSidebarWidth, newWidth)
   )
-  
+
   event.preventDefault()
 }
 
 // 拖拽结束
 const stopResize = () => {
   isResizing.value = false
-  
+
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
   document.removeEventListener('touchmove', handleResize)
   document.removeEventListener('touchend', stopResize)
-  
+
   document.body.style.userSelect = ''
   document.body.style.cursor = ''
 }
@@ -413,7 +561,7 @@ onUnmounted(() => {
     closeSSE(eventSource.value)
     eventSource.value = null
   }
-  
+
   window.removeEventListener('resize', updateContainerWidth)
   stopResize() // 确保清理事件监听器
 })
@@ -428,7 +576,16 @@ const handleSendMessage = async (content: string) => {
     })
     return
   }
-  
+
+  // 更新活跃时间
+  updateActivity()
+
+  // 重置当前问题状态，进入新的对话
+  currentQuestion.value = null
+
+  // 后端总是返回nodeId，前端也总是传递nodeId
+  const nodeIdToSend = currentNodeId.value
+
   const userNodeId = `user_${Date.now()}`
   const userNode: ConversationNode = {
     id: userNodeId,
@@ -439,7 +596,7 @@ const handleSendMessage = async (content: string) => {
     children: [],
     isActive: true
   }
-  
+
   const currentNode = conversationTree.value.get(currentNodeId.value)
   if (currentNode) {
     // 将当前节点的其他子节点设为非活跃状态
@@ -449,38 +606,50 @@ const handleSendMessage = async (content: string) => {
         setNodeAndDescendantsInactive(childId)
       }
     })
-    
+
     currentNode.children.push(userNodeId)
   }
-  
+
   conversationTree.value.set(userNodeId, userNode)
   currentNodeId.value = userNodeId
-  
+
   isLoading.value = true
-  
+
   try {
-    // 发送消息到后端
+    // 发送消息到后端，必须包含sessionId
     const messageRequest: MessageRequest = {
-      sessionId: session.value.sessionId,
+      sessionId: session.value.sessionId, // 必需的sessionId
       content,
       type: 'USER_TEXT'
     }
-    
-    await sendMessage(messageRequest)
-    
+
+    await sendUserMessage(messageRequest, session.value.userId, nodeIdToSend)
+
     // 消息发送成功，等待SSE返回AI回复
     console.log('消息已发送，等待AI回复...')
-    
+
   } catch (error: any) {
     console.error('发送消息失败:', error)
     isLoading.value = false
-    
-    toast.error({
-      title: '发送失败',
-      message: error.message || '消息发送失败，请重试',
-      duration: 4000
-    })
-    
+
+    // 检查是否是会话相关错误
+    if (error.message && (error.message.includes('sessionId') || error.message.includes('会话'))) {
+      toast.error({
+        title: '会话异常',
+        message: '会话已失效，请刷新页面重新建立连接',
+        duration: 5000
+      })
+      // 清理当前会话状态
+      session.value = null
+      closeConnection()
+    } else {
+      toast.error({
+        title: '发送失败',
+        message: error.message || '消息发送失败，请重试',
+        duration: 4000
+      })
+    }
+
     // 发送失败时移除用户消息节点
     conversationTree.value.delete(userNodeId)
     if (currentNode) {
@@ -488,6 +657,190 @@ const handleSendMessage = async (content: string) => {
       if (index > -1) {
         currentNode.children.splice(index, 1)
       }
+    }
+  }
+}
+
+// 处理重试问题
+const handleRetryQuestion = async (reason: string = '用户要求重新生成问题') => {
+  if (!session.value || !currentQuestion.value) {
+    toast.error({
+      title: '重试失败',
+      message: '会话未建立或没有当前问题',
+      duration: 3000
+    })
+    return
+  }
+
+  // 更新活跃时间
+  updateActivity()
+
+  isLoading.value = true
+
+  try {
+    // 构建重试请求
+    const retryRequest: RetryRequest = {
+      sessionId: session.value.sessionId,
+      nodeId: currentNodeId.value, // 当前问题节点ID
+      whyretry: reason
+    }
+
+    // 调用重试接口
+    await retryQuestion(retryRequest)
+
+    toast.success({
+      title: '重试成功',
+      message: '正在重新生成问题，请稍候',
+      duration: 2000
+    })
+
+    console.log('重试请求已发送，等待AI重新生成问题...')
+
+  } catch (error: any) {
+    console.error('重试失败:', error)
+    isLoading.value = false
+
+    // 检查是否是会话相关错误
+    if (error.message && (error.message.includes('sessionId') || error.message.includes('nodeId') || error.message.includes('会话') || error.message.includes('节点'))) {
+      toast.error({
+        title: '会话异常',
+        message: '会话或节点状态异常，请刷新页面重新建立连接',
+        duration: 5000
+      })
+      // 清理当前会话状态
+      session.value = null
+      closeConnection()
+    } else {
+      toast.error({
+        title: '重试失败',
+        message: error.message || '重试请求失败，请重试',
+        duration: 4000
+      })
+    }
+  }
+}
+
+// 处理答案提交
+const handleSubmitAnswer = async (answerData: any) => {
+  if (!session.value || !currentQuestion.value) {
+    toast.error({
+      title: '提交失败',
+      message: '会话未建立或没有当前问题',
+      duration: 3000
+    })
+    return
+  }
+
+  // 更新活跃时间
+  updateActivity()
+
+  isLoading.value = true
+
+  try {
+    // 保存当前问题节点ID，用于后端验证
+    const questionNodeId = currentNodeId.value
+    
+    // 构建统一答案请求，必须包含sessionId和正确的nodeId
+    const request: UnifiedAnswerRequest = {
+      sessionId: session.value.sessionId, // 必需的sessionId
+      nodeId: questionNodeId, // 问题节点ID，用于后端验证
+      questionType: currentQuestion.value.type,
+      answer: answerData,
+      userId: session.value.userId // 必需的userId
+    }
+
+    // 调用新的processAnswer接口
+    await processAnswer(request)
+
+    // 添加用户答案到对话树
+    const userNodeId = `user_${Date.now()}`
+    let answerContent = ''
+    
+    // 根据问题类型格式化答案内容
+    switch (currentQuestion.value.type) {
+      case 'input':
+        answerContent = `回答：${answerData}`
+        break
+      case 'single':
+        const selectedOption = currentQuestion.value.options.find((opt: any) => opt.id === answerData[0])
+        answerContent = `选择：${selectedOption ? selectedOption.label : answerData[0]}`
+        break
+      case 'multi':
+        const selectedOptions = currentQuestion.value.options.filter((opt: any) => answerData.includes(opt.id))
+        answerContent = `选择：${selectedOptions.map((opt: any) => opt.label).join('、')}`
+        break
+      case 'form':
+        const formAnswers = answerData.map((item: any) => {
+          const field = currentQuestion.value.fields.find((f: any) => f.id === item.id)
+          if (field) {
+            if (field.type === 'input') {
+              return `${field.question}：${item.value[0]}`
+            } else {
+              const selectedOpts = field.options?.filter((opt: any) => item.value.includes(opt.id))
+              return `${field.question}：${selectedOpts?.map((opt: any) => opt.label).join('、') || item.value.join('、')}`
+            }
+          }
+          return `${item.id}：${item.value.join('、')}`
+        })
+        answerContent = `表单回答：\n${formAnswers.join('\n')}`
+        break
+    }
+
+    const userNode: ConversationNode = {
+      id: userNodeId,
+      content: answerContent,
+      type: 'user',
+      timestamp: new Date(),
+      parentId: currentNodeId.value,
+      children: [],
+      isActive: true
+    }
+
+    const currentNode = conversationTree.value.get(currentNodeId.value)
+    if (currentNode) {
+      // 将当前节点的其他子节点设为非活跃状态
+      currentNode.children.forEach(childId => {
+        const childNode = conversationTree.value.get(childId)
+        if (childNode) {
+          setNodeAndDescendantsInactive(childId)
+        }
+      })
+      currentNode.children.push(userNodeId)
+    }
+
+    conversationTree.value.set(userNodeId, userNode)
+    // 不更新currentNodeId为用户节点ID，保持为问题节点ID直到收到新问题
+    // currentNodeId.value = userNodeId
+
+    // 不清除当前问题状态，保持显示直到收到新问题
+    // currentQuestion.value = null
+
+    toast.success({
+      title: '提交成功',
+      message: '答案已提交，等待AI回复',
+      duration: 2000
+    })
+
+  } catch (error: any) {
+    console.error('提交答案失败:', error)
+    isLoading.value = false
+
+    // 检查是否是会话或节点相关错误
+    if (error.message && (error.message.includes('sessionId') || error.message.includes('nodeId') || error.message.includes('会话') || error.message.includes('节点'))) {
+      toast.error({
+        title: '会话异常',
+        message: '会话或节点状态异常，请刷新页面重新建立连接',
+        duration: 5000
+      })
+      // 清理当前会话状态
+      session.value = null
+      closeConnection()
+    } else {
+      toast.error({
+        title: '提交失败',
+        message: error.message || '答案提交失败，请重试',
+        duration: 4000
+      })
     }
   }
 }
@@ -510,7 +863,7 @@ const handleNodeSelected = (nodeId: string) => {
     conversationTree.value.forEach(node => {
       node.isActive = false
     })
-    
+
     const activatePath = (currentNodeId: string) => {
       const node = conversationTree.value.get(currentNodeId)
       if (node) {
@@ -520,7 +873,7 @@ const handleNodeSelected = (nodeId: string) => {
         }
       }
     }
-    
+
     activatePath(nodeId)
     currentNodeId.value = nodeId
   }
@@ -533,28 +886,34 @@ const handleBranchDeleted = (nodeId: string) => {
       node.children.forEach(childId => {
         deleteNodeAndDescendants(childId)
       })
-      
+
       if (node.parentId) {
         const parentNode = conversationTree.value.get(node.parentId)
         if (parentNode) {
           parentNode.children = parentNode.children.filter(childId => childId !== id)
         }
       }
-      
+
       conversationTree.value.delete(id)
     }
   }
-  
+
   deleteNodeAndDescendants(nodeId)
-  
+
   if (!conversationTree.value.has(currentNodeId.value)) {
-    let newCurrentId = 'root'
+    // 动态查找根节点（没有parentId的节点）
+    let rootNodeId = ''
+    let newCurrentId = ''
     conversationTree.value.forEach((node, id) => {
-      if (node.isActive && id !== 'root') {
+      if (!node.parentId) {
+        rootNodeId = id
+      }
+      if (node.isActive) {
         newCurrentId = id
       }
     })
-    currentNodeId.value = newCurrentId
+    // 优先使用活跃节点，否则回退到根节点
+    currentNodeId.value = newCurrentId || rootNodeId
   }
 }
 </script>
@@ -677,7 +1036,7 @@ const handleBranchDeleted = (nodeId: string) => {
   flex-shrink: 0;
   position: relative;
   z-index: 2;
-  box-shadow: 
+  box-shadow:
     inset -1px 0 0 rgba(212, 175, 55, 0.1),
     0 0 32px rgba(0, 0, 0, 0.3);
 }
@@ -699,7 +1058,7 @@ const handleBranchDeleted = (nodeId: string) => {
   border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: 12px;
   backdrop-filter: blur(10px);
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
@@ -712,7 +1071,7 @@ const handleBranchDeleted = (nodeId: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgba(212, 175, 55, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
@@ -782,7 +1141,7 @@ const handleBranchDeleted = (nodeId: string) => {
   border-left: 1px solid rgba(212, 175, 55, 0.15);
   position: relative;
   z-index: 2;
-  box-shadow: 
+  box-shadow:
     inset 1px 0 0 rgba(212, 175, 55, 0.1),
     0 0 32px rgba(0, 0, 0, 0.3);
 }
@@ -803,11 +1162,11 @@ const handleBranchDeleted = (nodeId: string) => {
   .left-sidebar {
     width: 220px; /* 在较小屏幕上适当减少 */
   }
-  
+
   .right-sidebar {
     min-width: 450px;
   }
-  
+
   .main-content {
     min-width: 350px;
   }
@@ -817,7 +1176,7 @@ const handleBranchDeleted = (nodeId: string) => {
   .left-sidebar {
     width: 200px; /* 更小的屏幕进一步调整 */
   }
-  
+
   .right-sidebar {
     min-width: 400px;
   }
@@ -893,7 +1252,7 @@ const handleBranchDeleted = (nodeId: string) => {
 
 .resizer:hover {
   background: linear-gradient(180deg, rgba(212, 175, 55, 0.3), rgba(212, 175, 55, 0.6), rgba(212, 175, 55, 0.3));
-  box-shadow: 
+  box-shadow:
     0 0 20px rgba(212, 175, 55, 0.4),
     inset 0 0 20px rgba(212, 175, 55, 0.2);
   border-color: rgba(212, 175, 55, 0.5);
@@ -926,7 +1285,7 @@ const handleBranchDeleted = (nodeId: string) => {
   opacity: 0;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(10px);
-  box-shadow: 
+  box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
@@ -935,7 +1294,7 @@ const handleBranchDeleted = (nodeId: string) => {
   opacity: 1;
   transform: scale(1.05);
   border-color: rgba(212, 175, 55, 0.6);
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.4),
     0 0 20px rgba(212, 175, 55, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -972,7 +1331,7 @@ const handleBranchDeleted = (nodeId: string) => {
   border-left: 1px solid rgba(212, 175, 55, 0.15);
   position: relative;
   z-index: 2;
-  box-shadow: 
+  box-shadow:
     inset 1px 0 0 rgba(212, 175, 55, 0.1),
     0 0 32px rgba(0, 0, 0, 0.3);
 }
@@ -988,7 +1347,7 @@ body.resizing {
   .left-sidebar {
     width: 200px;
   }
-  
+
   .sidebar-content {
     padding: 24px 16px;
   }
@@ -998,23 +1357,23 @@ body.resizing {
   .ai-chat-page {
     flex-direction: column;
   }
-  
+
   .left-sidebar,
   .right-sidebar {
     width: 100% !important;
     height: 200px;
   }
-  
+
   .main-content {
     width: 100% !important;
     flex: 1;
     min-height: 400px;
   }
-  
+
   .resizer {
     display: none;
   }
-  
+
   .dynamic-background {
     display: none;
   }
@@ -1025,17 +1384,17 @@ body.resizing {
     padding: 16px 12px;
     gap: 20px;
   }
-  
+
   .sidebar-header {
     padding: 16px;
     gap: 12px;
   }
-  
+
   .icon-wrapper {
     width: 40px;
     height: 40px;
   }
-  
+
   .icon {
     font-size: 20px;
   }
