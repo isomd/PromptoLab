@@ -36,21 +36,12 @@
 
     <!-- 中间问答主页面 -->
     <div class="main-content" :style="{ width: mainContentWidth + 'px' }">
-      <QuestionRenderer
-        :current-question="currentQuestion"
-        :is-loading="isLoading"
-        @send-message="handleSendMessage"
-        @submit-answer="handleSubmitAnswer"
-        @retry-question="handleRetryQuestion"
-      />
+      <QuestionRenderer :current-question="currentQuestion" :is-loading="isLoading" @send-message="handleSendMessage"
+        @submit-answer="handleSubmitAnswer" @retry-question="handleRetryQuestion" />
     </div>
 
     <!-- 可拖拽的分隔条 -->
-    <div
-      class="resizer"
-      @mousedown="startResize"
-      @touchstart="startResize"
-    >
+    <div class="resizer" @mousedown="startResize" @touchstart="startResize">
       <div class="resizer-line"></div>
       <div class="resizer-handle">
         <div class="resizer-dots">
@@ -63,20 +54,15 @@
 
     <!-- 右侧思维导图 -->
     <div class="right-sidebar" :style="{ width: rightSidebarWidth + 'px' }">
-      <MindMapTree
-        :conversation-tree="conversationTree"
-        :current-node-id="currentNodeId"
-        @node-selected="handleNodeSelected"
-        @branch-deleted="handleBranchDeleted"
-      />
+      <MindMapTree :conversation-tree="conversationTree" :current-node-id="currentNodeId"
+        @node-selected="handleNodeSelected" @branch-deleted="handleBranchDeleted" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import QuestionRenderer from '../QuestionRenderer.vue'
-import ChatTree from './ChatTree.vue'
+import QuestionRenderer from './QuestionRenderer.vue'
 import MindMapTree from './MindMapTree.vue'
 import { startConversation, sendMessage, sendUserMessage, connectSSE, closeSSE, processAnswer, connectUserInteractionSSE, retryQuestion, type MessageRequest, type MessageResponse, type ConversationSession, type UnifiedAnswerRequest, type FormAnswerItem, type RetryRequest } from '@/services/conversationApi'
 import { toast } from '@/utils/toast'
@@ -143,7 +129,7 @@ const ensureUniqueConnection = () => {
     eventSource.value = null
     isConnected.value = false
   }
-  
+
   // 清理定时器
   if (connectionTimeout.value) {
     clearTimeout(connectionTimeout.value)
@@ -158,12 +144,12 @@ const ensureUniqueConnection = () => {
 // 更新活跃时间
 const updateActivity = () => {
   lastActivityTime.value = Date.now()
-  
+
   // 重置活跃超时定时器
   if (activityTimeout.value) {
     clearTimeout(activityTimeout.value)
   }
-  
+
   activityTimeout.value = setTimeout(() => {
     console.log('SSE连接因不活跃超时，自动关闭')
     closeConnection()
@@ -182,7 +168,7 @@ const closeConnection = () => {
     eventSource.value = null
   }
   isConnected.value = false
-  
+
   if (connectionTimeout.value) {
     clearTimeout(connectionTimeout.value)
     connectionTimeout.value = null
@@ -202,10 +188,10 @@ const initializeSession = async () => {
   try {
     // 确保连接唯一性
     ensureUniqueConnection()
-    
+
     // 生成用户ID（如果没有的话）
     const userId = 'demo-user-' + Date.now() // 临时用户ID
-    
+
     // 建立SSE连接（不传sessionId，让后端创建新会话）
     eventSource.value = connectUserInteractionSSE(
       null, // sessionId为null，后端会创建新会话
@@ -216,7 +202,7 @@ const initializeSession = async () => {
 
     // 启动活跃监控
     updateActivity()
-    
+
     console.log('SSE连接已建立，等待后端返回会话信息...')
 
   } catch (error: any) {
@@ -235,7 +221,7 @@ const initializeSession = async () => {
 // 处理SSE消息
 const handleSSEMessage = (response: any) => {
   console.log('收到SSE消息:', response)
-  
+
   // 更新活跃时间
   updateActivity()
 
@@ -248,14 +234,14 @@ const handleSSEMessage = (response: any) => {
         userId: response.userId || 'demo-user-' + Date.now()
       }
       isConnected.value = true
-      
+
       console.log('会话已建立:', session.value)
-      
+
       // 后端总是会返回nodeId，新会话返回'1'，已存在会话返回实际的nodeId
       if (response.nodeId) {
         currentNodeId.value = response.nodeId
         console.log('会话节点ID:', response.nodeId)
-        
+
         // 如果是根节点，初始化根节点
         if (response.nodeId === '1') {
           const rootNode: ConversationNode = {
@@ -269,7 +255,7 @@ const handleSSEMessage = (response: any) => {
           conversationTree.value.set('1', rootNode)
         }
       }
-      
+
       // 如果有现有的qaTree，恢复对话树
       if (response.qaTree) {
         try {
@@ -280,7 +266,7 @@ const handleSSEMessage = (response: any) => {
           console.error('恢复对话树失败:', error)
         }
       }
-      
+
       toast.success({
         title: '会话已建立',
         message: response.isNewSession ? '已创建新会话' : '已连接到现有会话',
@@ -295,12 +281,12 @@ const handleSSEMessage = (response: any) => {
   if (response.question && response.question.type) {
     // 这是新的问题格式
     currentQuestion.value = response.question
-    
+
     // 更新当前节点ID为新创建的问题节点ID
     if (response.currentNodeId) {
       // 创建问题节点并添加到对话树
       const questionContent = `${response.question.question}${response.question.desc ? '\n' + response.question.desc : ''}`
-      
+
       const questionNode: ConversationNode = {
         id: response.currentNodeId,
         content: questionContent,
@@ -310,7 +296,7 @@ const handleSSEMessage = (response: any) => {
         children: [],
         isActive: true
       }
-      
+
       // 更新父节点的children数组
       if (response.parentNodeId) {
         const parentNode = conversationTree.value.get(response.parentNodeId)
@@ -325,26 +311,26 @@ const handleSSEMessage = (response: any) => {
           parentNode.children.push(response.currentNodeId)
         }
       }
-      
+
       // 添加新问题节点到对话树
       conversationTree.value.set(response.currentNodeId, questionNode)
       currentNodeId.value = response.currentNodeId
       console.log('更新当前节点ID为:', response.currentNodeId)
-      
+
       // 在聊天界面显示问题内容
       addAIMessage(response.currentNodeId, questionContent)
     }
-    
+
     // 记录父节点ID，用于后续构建树形关系图
     if (response.parentNodeId) {
       console.log('父节点ID:', response.parentNodeId)
     }
-    
+
     isLoading.value = false
     console.log('收到新格式问题:', response.question, '当前节点ID:', response.currentNodeId, '父节点ID:', response.parentNodeId)
     return
   }
-  
+
   const messageResponse = response as MessageResponse
   switch (messageResponse.type) {
     case 'AI_QUESTION':
@@ -391,11 +377,15 @@ const handleSSEMessage = (response: any) => {
   }
 }
 
+var retryCount = 1
 // 处理SSE错误
 const handleSSEError = (error: Event) => {
+
+  if (retryCount <= 0) return
+  retryCount--
   console.error('SSE连接错误:', error)
   isConnected.value = false
-  
+
   // 清理定时器
   if (activityTimeout.value) {
     clearTimeout(activityTimeout.value)
@@ -414,14 +404,14 @@ const handleSSEError = (error: Event) => {
       if (!isConnected.value && !isInitializing.value) {
         console.log('尝试重连到现有会话:', session.value?.sessionId)
         ensureUniqueConnection() // 确保连接唯一性
-        
+
         eventSource.value = connectUserInteractionSSE(
           session.value?.sessionId || null,
           session.value?.userId || 'demo-user-' + Date.now(),
           handleSSEMessage,
           handleSSEError
         )
-        
+
         // 重新启动活跃监控
         updateActivity()
       }
@@ -550,6 +540,16 @@ const updateContainerWidth = () => {
 
 // 生命周期
 onMounted(() => {
+  currentNodeId.value = '1'
+  const rootNode: ConversationNode = {
+    id: '1',
+    content: '您好！我是AI助手，有什么可以帮助您的吗？',
+    type: 'assistant',
+    timestamp: new Date(),
+    children: [],
+    isActive: true
+  }
+  conversationTree.value.set('1', rootNode)
   initializeSession()
   updateContainerWidth()
   window.addEventListener('resize', updateContainerWidth)
@@ -568,18 +568,6 @@ onUnmounted(() => {
 
 // 发送消息
 const handleSendMessage = async (content: string) => {
-  if (!session.value || !isConnected.value) {
-    toast.error({
-      title: '连接异常',
-      message: '请等待连接建立后再发送消息',
-      duration: 3000
-    })
-    return
-  }
-
-  // 更新活跃时间
-  updateActivity()
-
   // 重置当前问题状态，进入新的对话
   currentQuestion.value = null
 
@@ -615,50 +603,10 @@ const handleSendMessage = async (content: string) => {
 
   isLoading.value = true
 
-  try {
-    // 发送消息到后端，必须包含sessionId
-    const messageRequest: MessageRequest = {
-      sessionId: session.value.sessionId, // 必需的sessionId
-      content,
-      type: 'USER_TEXT'
-    }
-
-    await sendUserMessage(messageRequest, session.value.userId, nodeIdToSend)
-
-    // 消息发送成功，等待SSE返回AI回复
-    console.log('消息已发送，等待AI回复...')
-
-  } catch (error: any) {
-    console.error('发送消息失败:', error)
-    isLoading.value = false
-
-    // 检查是否是会话相关错误
-    if (error.message && (error.message.includes('sessionId') || error.message.includes('会话'))) {
-      toast.error({
-        title: '会话异常',
-        message: '会话已失效，请刷新页面重新建立连接',
-        duration: 5000
-      })
-      // 清理当前会话状态
-      session.value = null
-      closeConnection()
-    } else {
-      toast.error({
-        title: '发送失败',
-        message: error.message || '消息发送失败，请重试',
-        duration: 4000
-      })
-    }
-
-    // 发送失败时移除用户消息节点
-    conversationTree.value.delete(userNodeId)
-    if (currentNode) {
-      const index = currentNode.children.indexOf(userNodeId)
-      if (index > -1) {
-        currentNode.children.splice(index, 1)
-      }
-    }
-  }
+  // 添加模拟AI回复逻辑
+  setTimeout(() => {
+    generateMockAIResponse(content)
+  }, 500 + Math.random() * 500) // 0.5-1秒随机延迟
 }
 
 // 处理重试问题
@@ -719,7 +667,71 @@ const handleRetryQuestion = async (reason: string = '用户要求重新生成问
     }
   }
 }
+// 生成模拟AI回复
+const generateMockAIResponse = (userMessage: string) => {
+  const mockResponses = [
 
+    JSON.parse(`{
+  "question": "你的博客系统主要用途是什么？",
+  "type": "multi",
+  "parentId": "blog",
+  "options": [
+    {
+      "id": "personal",
+      "label" : "个人博客",
+      "description": "用于记录个人生活、思考和创作",
+      "weight": 8
+    },
+    {
+      "id": "tech",
+      "label": "技术博客",
+      "description": "分享技术文章、开发经验等",
+      "weight": 7
+    },
+    {
+      "id": "business",
+      "label": "企业博客",
+      "description" : "用于企业宣传、产品推广等",
+      "weight": 5
+    }
+  ],
+  "allowMultiple": false,
+  "allowOther": true
+}`),
+  ]
+
+  // 根据用户消息内容选择合适的回复
+  let response = mockResponses[Math.floor(Math.random() * mockResponses.length)]
+  console.log(response)
+  currentQuestion.value = response
+  // 创建AI回复节点
+  const aiNodeId = `ai_${Date.now()}`
+  const aiNode: ConversationNode = {
+    id: aiNodeId,
+    content: JSON.stringify(response),
+    type: 'assistant',
+    timestamp: new Date(),
+    parentId: currentNodeId.value,
+    children: [],
+    isActive: true
+  }
+
+  const currentNode = conversationTree.value.get(currentNodeId.value)
+  if (currentNode) {
+    currentNode.children.push(aiNodeId)
+  }
+
+  conversationTree.value.set(aiNodeId, aiNode)
+  currentNodeId.value = aiNodeId
+  isLoading.value = false
+
+  // 显示成功提示
+  toast.success({
+    title: '回复已生成',
+    message: 'AI助手已回复您的消息',
+    duration: 2000
+  })
+}
 // 处理答案提交
 const handleSubmitAnswer = async (answerData: any) => {
   if (!session.value || !currentQuestion.value) {
@@ -739,7 +751,7 @@ const handleSubmitAnswer = async (answerData: any) => {
   try {
     // 保存当前问题节点ID，用于后端验证
     const questionNodeId = currentNodeId.value
-    
+
     // 构建统一答案请求，必须包含sessionId和正确的nodeId
     const request: UnifiedAnswerRequest = {
       sessionId: session.value.sessionId, // 必需的sessionId
@@ -755,7 +767,7 @@ const handleSubmitAnswer = async (answerData: any) => {
     // 添加用户答案到对话树
     const userNodeId = `user_${Date.now()}`
     let answerContent = ''
-    
+
     // 根据问题类型格式化答案内容
     switch (currentQuestion.value.type) {
       case 'input':
@@ -860,10 +872,12 @@ const setNodeAndDescendantsInactive = (nodeId: string) => {
 const handleNodeSelected = (nodeId: string) => {
   const targetNode = conversationTree.value.get(nodeId)
   if (targetNode) {
+    // 首先将所有节点设为非活跃
     conversationTree.value.forEach(node => {
       node.isActive = false
     })
 
+    // 激活从根节点到目标节点的完整路径
     const activatePath = (currentNodeId: string) => {
       const node = conversationTree.value.get(currentNodeId)
       if (node) {
@@ -876,6 +890,12 @@ const handleNodeSelected = (nodeId: string) => {
 
     activatePath(nodeId)
     currentNodeId.value = nodeId
+
+    // 如果选中的是问题节点，恢复问题状态
+    if (targetNode.type === 'assistant' && targetNode.content.includes('问题')) {
+      // 尝试解析并恢复问题状态
+      // 这里需要根据实际的问题格式来实现
+    }
   }
 }
 
@@ -978,12 +998,16 @@ const handleBranchDeleted = (nodeId: string) => {
 }
 
 @keyframes float {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate(0, 0) rotate(0deg);
   }
+
   33% {
     transform: translate(30px, -30px) rotate(120deg);
   }
+
   66% {
     transform: translate(-20px, 20px) rotate(240deg);
   }
@@ -1014,13 +1038,18 @@ const handleBranchDeleted = (nodeId: string) => {
 }
 
 @keyframes particle-float {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0) rotate(0deg);
     opacity: 0;
   }
-  10%, 90% {
+
+  10%,
+  90% {
     opacity: 0.4;
   }
+
   50% {
     transform: translateY(-100px) rotate(180deg);
     opacity: 0.8;
@@ -1029,7 +1058,8 @@ const handleBranchDeleted = (nodeId: string) => {
 
 /* 左侧栏 - 恢复原始宽度 */
 .left-sidebar {
-  width: 250px; /* 恢复到原始的250px宽度 */
+  width: 250px;
+  /* 恢复到原始的250px宽度 */
   background: rgba(8, 8, 8, 0.9);
   backdrop-filter: blur(24px) saturate(180%);
   border-right: 1px solid rgba(212, 175, 55, 0.15);
@@ -1042,18 +1072,22 @@ const handleBranchDeleted = (nodeId: string) => {
 }
 
 .sidebar-content {
-  padding: 24px 20px; /* 恢复原始内边距 */
+  padding: 24px 20px;
+  /* 恢复原始内边距 */
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 24px; /* 恢复原始间距 */
+  gap: 24px;
+  /* 恢复原始间距 */
 }
 
 .sidebar-header {
   display: flex;
   align-items: center;
-  gap: 16px; /* 恢复原始间距 */
-  padding: 16px; /* 恢复原始内边距 */
+  gap: 16px;
+  /* 恢复原始间距 */
+  padding: 16px;
+  /* 恢复原始内边距 */
   background: linear-gradient(135deg, rgba(212, 175, 55, 0.08), rgba(244, 208, 63, 0.04));
   border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: 12px;
@@ -1064,7 +1098,8 @@ const handleBranchDeleted = (nodeId: string) => {
 }
 
 .icon-wrapper {
-  width: 48px; /* 恢复到原始的48px */
+  width: 48px;
+  /* 恢复到原始的48px */
   height: 48px;
   background: linear-gradient(135deg, #d4af37 0%, #f4d03f 50%, #d4af37 100%);
   border-radius: 12px;
@@ -1077,14 +1112,16 @@ const handleBranchDeleted = (nodeId: string) => {
 }
 
 .icon {
-  font-size: 22px; /* 恢复到原始的22px */
+  font-size: 22px;
+  /* 恢复到原始的22px */
   color: #1a1a1a;
   font-weight: 700;
 }
 
 .header-text h3 {
   margin: 0;
-  font-size: 18px; /* 恢复到原始的18px */
+  font-size: 18px;
+  /* 恢复到原始的18px */
   font-weight: 700;
   background: linear-gradient(135deg, #ffffff 0%, #d4af37 100%);
   -webkit-background-clip: text;
@@ -1095,7 +1132,8 @@ const handleBranchDeleted = (nodeId: string) => {
 
 .header-text p {
   margin: 4px 0 0 0;
-  font-size: 12px; /* 恢复到原始的12px */
+  font-size: 12px;
+  /* 恢复到原始的12px */
   color: #888;
   font-weight: 500;
   letter-spacing: 0.5px;
@@ -1104,7 +1142,8 @@ const handleBranchDeleted = (nodeId: string) => {
 
 .placeholder-content {
   text-align: center;
-  padding: 32px 20px; /* 恢复原始内边距 */
+  padding: 32px 20px;
+  /* 恢复原始内边距 */
   background: rgba(15, 15, 15, 0.6);
   border: 1px solid rgba(212, 175, 55, 0.1);
   border-radius: 16px;
@@ -1113,20 +1152,23 @@ const handleBranchDeleted = (nodeId: string) => {
 }
 
 .placeholder-icon {
-  font-size: 32px; /* 恢复到原始的32px */
+  font-size: 32px;
+  /* 恢复到原始的32px */
   margin-bottom: 16px;
   opacity: 0.6;
 }
 
 .placeholder-content p {
   margin: 0 0 8px 0;
-  font-size: 16px; /* 恢复到原始的16px */
+  font-size: 16px;
+  /* 恢复到原始的16px */
   font-weight: 600;
   color: #e8e8e8;
 }
 
 .placeholder-content span {
-  font-size: 12px; /* 恢复到原始的12px */
+  font-size: 12px;
+  /* 恢复到原始的12px */
   color: #888;
   font-weight: 500;
 }
@@ -1135,8 +1177,10 @@ const handleBranchDeleted = (nodeId: string) => {
 .right-sidebar {
   background: rgba(8, 8, 8, 0.9);
   backdrop-filter: blur(24px) saturate(180%);
-  min-width: 600px; /* 从500px进一步增加到600px */
-  max-width: 1200px; /* 从900px增加到1200px */
+  min-width: 600px;
+  /* 从500px进一步增加到600px */
+  max-width: 1200px;
+  /* 从900px增加到1200px */
   flex-shrink: 0;
   border-left: 1px solid rgba(212, 175, 55, 0.15);
   position: relative;
@@ -1150,7 +1194,8 @@ const handleBranchDeleted = (nodeId: string) => {
 .main-content {
   display: flex;
   flex-direction: column;
-  min-width: 400px; /* 恢复到400px */
+  min-width: 400px;
+  /* 恢复到400px */
   background: rgba(10, 10, 10, 0.8);
   backdrop-filter: blur(20px);
   position: relative;
@@ -1160,7 +1205,8 @@ const handleBranchDeleted = (nodeId: string) => {
 /* 响应式设计调整 */
 @media (max-width: 1200px) {
   .left-sidebar {
-    width: 220px; /* 在较小屏幕上适当减少 */
+    width: 220px;
+    /* 在较小屏幕上适当减少 */
   }
 
   .right-sidebar {
@@ -1174,7 +1220,8 @@ const handleBranchDeleted = (nodeId: string) => {
 
 @media (max-width: 1024px) {
   .left-sidebar {
-    width: 200px; /* 更小的屏幕进一步调整 */
+    width: 200px;
+    /* 更小的屏幕进一步调整 */
   }
 
   .right-sidebar {
