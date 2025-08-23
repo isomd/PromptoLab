@@ -891,10 +891,45 @@ const handleNodeSelected = (nodeId: string) => {
     activatePath(nodeId)
     currentNodeId.value = nodeId
 
-    // 如果选中的是问题节点，恢复问题状态
-    if (targetNode.type === 'assistant' && targetNode.content.includes('问题')) {
-      // 尝试解析并恢复问题状态
-      // 这里需要根据实际的问题格式来实现
+    // 根据节点类型设置currentQuestion
+    if (targetNode.type === 'assistant') {
+      // 尝试恢复问题状态
+      try {
+        // 方法1: 尝试解析content中的JSON格式问题数据
+        const questionData = JSON.parse(targetNode.content)
+        if (questionData.type && ['input', 'single', 'multi', 'form'].includes(questionData.type)) {
+          currentQuestion.value = questionData
+          console.log('恢复问题状态:', questionData)
+          return
+        }
+      } catch (e) {
+        // 如果不是JSON格式，检查是否是问题文本格式
+        console.log('非JSON格式，检查是否为问题文本')
+      }
+      
+      // 方法2: 如果是问题文本但不是JSON格式，清除问题状态
+      // 这种情况下显示为普通对话
+      currentQuestion.value = null
+    } else if (targetNode.type === 'user') {
+      // 如果点击的是用户节点，查找对应的问题节点
+      if (targetNode.parentId) {
+        const questionNode = conversationTree.value.get(targetNode.parentId)
+        if (questionNode && questionNode.type === 'assistant') {
+          try {
+            // 尝试解析父节点（问题节点）的问题数据
+            const questionData = JSON.parse(questionNode.content)
+            if (questionData.type && ['input', 'single', 'multi', 'form'].includes(questionData.type)) {
+              currentQuestion.value = questionData
+              console.log('从用户回答节点恢复问题状态:', questionData)
+              return
+            }
+          } catch (e) {
+            console.log('用户节点对应的问题节点不是JSON格式')
+          }
+        }
+      }
+      // 如果无法找到对应的问题，清除问题状态
+      currentQuestion.value = null
     }
   }
 }
