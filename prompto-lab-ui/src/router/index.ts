@@ -41,14 +41,6 @@ const router = createRouter({
         title: 'API配置 - AI诗人'
       }
     },
-    {
-      path: '/test/question-renderer',
-      name: 'question-renderer-test',
-      component: () => import('../views/QuestionRendererTestView.vue'),
-      meta: {
-        title: 'QuestionRenderer测试 - PromptoLab'
-      }
-    }
   ]
 })
 

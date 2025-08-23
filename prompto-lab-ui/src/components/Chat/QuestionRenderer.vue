@@ -343,6 +343,7 @@ const loadingType = computed(() => {
 // 监听问题变化，重置答案
 watch(() => props.currentQuestion, (newQuestion, oldQuestion) => {
   if (newQuestion && newQuestion !== oldQuestion) {
+    console.log(props.currentQuestion)
     resetAnswers()
   }
 }, { deep: true })
