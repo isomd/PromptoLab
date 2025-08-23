@@ -124,7 +124,7 @@ const currentQuestion = ref<any>(null)
 // 确保SSE连接唯一性
 const ensureUniqueConnection = () => {
   if (eventSource.value) {
-    console.log('关闭现有SSE连接以确保唯一性')
+    // console.log('关闭现有SSE连接以确保唯一性')
     closeSSE(eventSource.value)
     eventSource.value = null
     isConnected.value = false
@@ -143,6 +143,7 @@ const ensureUniqueConnection = () => {
 
 // 更新活跃时间
 const updateActivity = () => {
+  console.log(conversationTree.value)
   lastActivityTime.value = Date.now()
 
   // 重置活跃超时定时器
@@ -203,7 +204,7 @@ const initializeSession = async () => {
     // 启动活跃监控
     updateActivity()
 
-    console.log('SSE连接已建立，等待后端返回会话信息...')
+    // console.log('SSE连接已建立，等待后端返回会话信息...')
 
   } catch (error: any) {
     console.error('初始化会话失败:', error)
@@ -220,7 +221,7 @@ const initializeSession = async () => {
 
 // 处理SSE消息
 const handleSSEMessage = (response: any) => {
-  console.log('收到SSE消息:', response)
+  // console.log('收到SSE消息:', response)
 
   // 更新活跃时间
   updateActivity()
@@ -235,12 +236,12 @@ const handleSSEMessage = (response: any) => {
       }
       isConnected.value = true
 
-      console.log('会话已建立:', session.value)
+      // console.log('会话已建立:', session.value)
 
       // 后端总是会返回nodeId，新会话返回'1'，已存在会话返回实际的nodeId
       if (response.nodeId) {
         currentNodeId.value = response.nodeId
-        console.log('会话节点ID:', response.nodeId)
+        // console.log('会话节点ID:', response.nodeId)
 
         // 如果是根节点，初始化根节点
         if (response.nodeId === '1') {
@@ -260,7 +261,7 @@ const handleSSEMessage = (response: any) => {
       if (response.qaTree) {
         try {
           // 这里需要根据实际的qaTree格式来解析和恢复对话树
-          console.log('恢复现有对话树:', response.qaTree)
+          // console.log('恢复现有对话树:', response.qaTree)
           // TODO: 实现qaTree的解析和恢复逻辑
         } catch (error) {
           console.error('恢复对话树失败:', error)
@@ -286,7 +287,6 @@ const handleSSEMessage = (response: any) => {
     if (response.currentNodeId) {
       // 创建问题节点并添加到对话树
       const questionContent = `${response.question.question}${response.question.desc ? '\n' + response.question.desc : ''}`
-
       const questionNode: ConversationNode = {
         id: response.currentNodeId,
         content: questionContent,
@@ -315,7 +315,7 @@ const handleSSEMessage = (response: any) => {
       // 添加新问题节点到对话树
       conversationTree.value.set(response.currentNodeId, questionNode)
       currentNodeId.value = response.currentNodeId
-      console.log('更新当前节点ID为:', response.currentNodeId)
+      // console.log('更新当前节点ID为:', response.currentNodeId)
 
       // 在聊天界面显示问题内容
       addAIMessage(response.currentNodeId, questionContent)
@@ -323,11 +323,11 @@ const handleSSEMessage = (response: any) => {
 
     // 记录父节点ID，用于后续构建树形关系图
     if (response.parentNodeId) {
-      console.log('父节点ID:', response.parentNodeId)
+      // console.log('父节点ID:', response.parentNodeId)
     }
 
     isLoading.value = false
-    console.log('收到新格式问题:', response.question, '当前节点ID:', response.currentNodeId, '父节点ID:', response.parentNodeId)
+    // console.log('收到新格式问题:', response.question, '当前节点ID:', response.currentNodeId, '父节点ID:', response.parentNodeId)
     return
   }
 
@@ -343,7 +343,7 @@ const handleSSEMessage = (response: any) => {
           break
         }
       } catch (e) {
-        console.log('非JSON格式的问题，作为普通消息处理')
+        // console.log('非JSON格式的问题，作为普通消息处理')
       }
       // 如果不是问题格式，作为普通消息处理
       addAIMessage(messageResponse.nodeId, messageResponse.content)
@@ -366,7 +366,7 @@ const handleSSEMessage = (response: any) => {
       break
     case undefined:
       // 处理没有type字段的消息
-      console.log('收到没有type字段的消息，尝试作为普通消息处理:', response)
+      // console.log('收到没有type字段的消息，尝试作为普通消息处理:', response)
       if (response.content) {
         addAIMessage(response.nodeId || `ai_${Date.now()}`, response.content)
       }
@@ -402,7 +402,7 @@ const handleSSEError = (error: Event) => {
   if (session.value && !isInitializing.value) {
     setTimeout(() => {
       if (!isConnected.value && !isInitializing.value) {
-        console.log('尝试重连到现有会话:', session.value?.sessionId)
+        // console.log('尝试重连到现有会话:', session.value?.sessionId)
         ensureUniqueConnection() // 确保连接唯一性
 
         eventSource.value = connectUserInteractionSSE(
@@ -603,10 +603,50 @@ const handleSendMessage = async (content: string) => {
 
   isLoading.value = true
 
-  // 添加模拟AI回复逻辑
-  setTimeout(() => {
-    generateMockAIResponse(content)
-  }, 500 + Math.random() * 500) // 0.5-1秒随机延迟
+  try {
+    // 发送消息到后端，必须包含sessionId
+    const messageRequest: MessageRequest = {
+      sessionId: session.value.sessionId, // 必需的sessionId
+      content,
+      type: 'USER_TEXT'
+    }
+
+    await sendUserMessage(messageRequest, session.value.userId, nodeIdToSend)
+
+    // 消息发送成功，等待SSE返回AI回复
+    // console.log('消息已发送，等待AI回复...')
+
+  } catch (error: any) {
+    console.error('发送消息失败:', error)
+    isLoading.value = false
+
+    // 检查是否是会话相关错误
+    if (error.message && (error.message.includes('sessionId') || error.message.includes('会话'))) {
+      toast.error({
+        title: '会话异常',
+        message: '会话已失效，请刷新页面重新建立连接',
+        duration: 5000
+      })
+      // 清理当前会话状态
+      session.value = null
+      closeConnection()
+    } else {
+      toast.error({
+        title: '发送失败',
+        message: error.message || '消息发送失败，请重试',
+        duration: 4000
+      })
+    }
+
+    // 发送失败时移除用户消息节点
+    conversationTree.value.delete(userNodeId)
+    if (currentNode) {
+      const index = currentNode.children.indexOf(userNodeId)
+      if (index > -1) {
+        currentNode.children.splice(index, 1)
+      }
+    }
+  }
 }
 
 // 处理重试问题
@@ -642,7 +682,7 @@ const handleRetryQuestion = async (reason: string = '用户要求重新生成问
       duration: 2000
     })
 
-    console.log('重试请求已发送，等待AI重新生成问题...')
+    // console.log('重试请求已发送，等待AI重新生成问题...')
 
   } catch (error: any) {
     console.error('重试失败:', error)
@@ -667,71 +707,7 @@ const handleRetryQuestion = async (reason: string = '用户要求重新生成问
     }
   }
 }
-// 生成模拟AI回复
-const generateMockAIResponse = (userMessage: string) => {
-  const mockResponses = [
 
-    JSON.parse(`{
-  "question": "你的博客系统主要用途是什么？",
-  "type": "multi",
-  "parentId": "blog",
-  "options": [
-    {
-      "id": "personal",
-      "label" : "个人博客",
-      "description": "用于记录个人生活、思考和创作",
-      "weight": 8
-    },
-    {
-      "id": "tech",
-      "label": "技术博客",
-      "description": "分享技术文章、开发经验等",
-      "weight": 7
-    },
-    {
-      "id": "business",
-      "label": "企业博客",
-      "description" : "用于企业宣传、产品推广等",
-      "weight": 5
-    }
-  ],
-  "allowMultiple": false,
-  "allowOther": true
-}`),
-  ]
-
-  // 根据用户消息内容选择合适的回复
-  let response = mockResponses[Math.floor(Math.random() * mockResponses.length)]
-  console.log(response)
-  currentQuestion.value = response
-  // 创建AI回复节点
-  const aiNodeId = `ai_${Date.now()}`
-  const aiNode: ConversationNode = {
-    id: aiNodeId,
-    content: JSON.stringify(response),
-    type: 'assistant',
-    timestamp: new Date(),
-    parentId: currentNodeId.value,
-    children: [],
-    isActive: true
-  }
-
-  const currentNode = conversationTree.value.get(currentNodeId.value)
-  if (currentNode) {
-    currentNode.children.push(aiNodeId)
-  }
-
-  conversationTree.value.set(aiNodeId, aiNode)
-  currentNodeId.value = aiNodeId
-  isLoading.value = false
-
-  // 显示成功提示
-  toast.success({
-    title: '回复已生成',
-    message: 'AI助手已回复您的消息',
-    duration: 2000
-  })
-}
 // 处理答案提交
 const handleSubmitAnswer = async (answerData: any) => {
   if (!session.value || !currentQuestion.value) {
@@ -899,12 +875,12 @@ const handleNodeSelected = (nodeId: string) => {
         const questionData = JSON.parse(targetNode.content)
         if (questionData.type && ['input', 'single', 'multi', 'form'].includes(questionData.type)) {
           currentQuestion.value = questionData
-          console.log('恢复问题状态:', questionData)
+          // console.log('恢复问题状态:', questionData)
           return
         }
       } catch (e) {
         // 如果不是JSON格式，检查是否是问题文本格式
-        console.log('非JSON格式，检查是否为问题文本')
+        // console.log('非JSON格式，检查是否为问题文本')
       }
       
       // 方法2: 如果是问题文本但不是JSON格式，清除问题状态
@@ -920,11 +896,11 @@ const handleNodeSelected = (nodeId: string) => {
             const questionData = JSON.parse(questionNode.content)
             if (questionData.type && ['input', 'single', 'multi', 'form'].includes(questionData.type)) {
               currentQuestion.value = questionData
-              console.log('从用户回答节点恢复问题状态:', questionData)
+              // console.log('从用户回答节点恢复问题状态:', questionData)
               return
             }
           } catch (e) {
-            console.log('用户节点对应的问题节点不是JSON格式')
+            // console.log('用户节点对应的问题节点不是JSON格式')
           }
         }
       }
