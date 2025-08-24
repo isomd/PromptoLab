@@ -1,6 +1,7 @@
 package io.github.timemachinelab.controller;
 
 import com.alibaba.fastjson2.JSON;
+import io.github.timemachinelab.core.constant.AllPrompt;
 import io.github.timemachinelab.core.session.application.MessageProcessingService;
 import io.github.timemachinelab.core.session.application.SessionManagementService;
 import io.github.timemachinelab.core.session.application.SseNotificationService;
@@ -294,7 +295,7 @@ public class UserInteractionController {
     @PostMapping("/gen-prompt")
     public ResponseEntity<String>  genPrompt(@RequestBody GenPromptRequest request) {
         GenPromptOperation.GpResponse gpResponse = new GenPromptOperation.GpResponse();
-        gpResponse.setGenPrompt("This is a test response for gen-prompt endpoint.");
+        gpResponse.setGenPrompt(AllPrompt.GEN_PROMPT_AGENT_PROMPT);
         sseNotificationService.sendWelcomeMessage(request.getSessionId(), JSON.toJSONString(gpResponse));
         return ResponseEntity.ok("生成提示词");
     }

@@ -218,14 +218,19 @@
     </div>
 
     <!-- 提示词结果展示 -->
-    <div v-if="promptResult" class="prompt-result">
+    <div v-if="showPromptResult && promptResult" class="prompt-result">
       <div class="prompt-result-container">
         <div class="prompt-result-header">
           <h3 class="result-title">生成的提示词</h3>
-          <button @click="copyPrompt" class="copy-btn" :class="{ copied: copySuccess }">
-            <span class="btn-icon">{{ copySuccess ? '✅' : '📋' }}</span>
-            <span class="btn-text">{{ copySuccess ? '已复制' : '复制' }}</span>
-          </button>
+          <div class="header-actions">
+            <button @click="copyPrompt" class="copy-btn" :class="{ copied: copySuccess }">
+              <span class="btn-icon">{{ copySuccess ? '✅' : '📋' }}</span>
+              <span class="btn-text">{{ copySuccess ? '已复制' : '复制' }}</span>
+            </button>
+            <button @click="closePromptResult" class="close-btn" title="关闭">
+              <span class="btn-icon">✕</span>
+            </button>
+          </div>
         </div>
         
         <div class="prompt-content">
@@ -279,7 +284,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, nextTick, computed, watch } from 'vue'
+import { ref, reactive, nextTick, computed, watch, getCurrentInstance } from 'vue'
 import LoadingAnimation from './LoadingAnimation.vue'
 import SingleChoiceOptions from './SingleChoiceOptions.vue'
 import MultipleChoiceOptions from './MultipleChoiceOptions.vue'
@@ -526,8 +531,14 @@ const showRetryDialog = ref(false)
 const retryReason = ref('')
 
 // 提示词相关状态
-const promptResult = ref('')
+const promptResult = ref<string>('')
 const copySuccess = ref(false)
+const showPromptResult = ref(false)
+
+// 监听promptResult变化
+watch(() => promptResult.value, (newValue, oldValue) => {
+  // 可以在这里添加必要的响应式逻辑
+})
 
 const retryQuestion = () => {
   // 显示重试原因输入对话框
@@ -601,6 +612,7 @@ const regeneratePrompt = async () => {
 
 const continueChat = () => {
   promptResult.value = ''
+  showPromptResult.value = false
   // 继续问答功能暂时不实现
   console.log('继续问答功能待实现')
 }
@@ -632,9 +644,31 @@ const copyPrompt = async () => {
   }
 }
 
+// 关闭提示词结果
+const closePromptResult = () => {
+  promptResult.value = ''
+  showPromptResult.value = false
+  copySuccess.value = false
+}
+
+// 获取当前组件实例
+const instance = getCurrentInstance()
+
 // 暴露设置提示词结果的方法
 const setPromptResult = (result: string) => {
+  // 设置提示词内容和显示状态
   promptResult.value = result
+  showPromptResult.value = true
+  
+  // 强制更新组件以确保响应式更新
+  if (instance) {
+    instance.proxy?.$forceUpdate()
+  }
+  
+  // 使用nextTick确保DOM更新完成
+  nextTick(() => {
+    // DOM更新完成后的回调
+  })
 }
 
 // 暴露方法给父组件
@@ -1808,6 +1842,41 @@ defineExpose({
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 16px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(15, 15, 15, 0.8);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 50%;
+  color: #e8e8e8;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+}
+
+.close-btn:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  transform: scale(1.05);
+}
+
+.close-btn .btn-icon {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .result-title {
