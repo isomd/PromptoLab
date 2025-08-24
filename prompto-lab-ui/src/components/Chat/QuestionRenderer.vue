@@ -218,9 +218,7 @@
     </div>
 
     <!-- 提示词结果展示 -->
-    <div v-if="promptResult" class="prompt-result">
-      <!-- 调试信息 -->
-      <div style="display: none;">{{ console.log('模板中promptResult值:', promptResult) }}</div>
+    <div v-if="showPromptResult && promptResult" class="prompt-result">
       <div class="prompt-result-container">
         <div class="prompt-result-header">
           <h3 class="result-title">生成的提示词</h3>
@@ -286,7 +284,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, nextTick, computed, watch } from 'vue'
+import { ref, reactive, nextTick, computed, watch, getCurrentInstance } from 'vue'
 import LoadingAnimation from './LoadingAnimation.vue'
 import SingleChoiceOptions from './SingleChoiceOptions.vue'
 import MultipleChoiceOptions from './MultipleChoiceOptions.vue'
@@ -400,12 +398,6 @@ watch(() => props.currentQuestion, (newQuestion, oldQuestion) => {
     resetAnswers()
   }
 }, { deep: true })
-
-// 监听promptResult变化
-watch(() => promptResult.value, (newValue, oldValue) => {
-  console.log('promptResult变化:', { oldValue, newValue })
-  console.log('promptResult是否为真值:', !!newValue)
-}, { immediate: true })
 
 // 方法
 const resetAnswers = () => {
@@ -539,8 +531,14 @@ const showRetryDialog = ref(false)
 const retryReason = ref('')
 
 // 提示词相关状态
-const promptResult = ref('')
+const promptResult = ref<string>('')
 const copySuccess = ref(false)
+const showPromptResult = ref(false)
+
+// 监听promptResult变化
+watch(() => promptResult.value, (newValue, oldValue) => {
+  // 可以在这里添加必要的响应式逻辑
+})
 
 const retryQuestion = () => {
   // 显示重试原因输入对话框
@@ -614,6 +612,7 @@ const regeneratePrompt = async () => {
 
 const continueChat = () => {
   promptResult.value = ''
+  showPromptResult.value = false
   // 继续问答功能暂时不实现
   console.log('继续问答功能待实现')
 }
@@ -648,20 +647,27 @@ const copyPrompt = async () => {
 // 关闭提示词结果
 const closePromptResult = () => {
   promptResult.value = ''
+  showPromptResult.value = false
   copySuccess.value = false
 }
 
+// 获取当前组件实例
+const instance = getCurrentInstance()
+
 // 暴露设置提示词结果的方法
 const setPromptResult = (result: string) => {
-  console.log('子组件setPromptResult被调用，参数:', result)
-  console.log('设置前promptResult.value:', promptResult.value)
+  // 设置提示词内容和显示状态
   promptResult.value = result
-  console.log('设置后promptResult.value:', promptResult.value)
+  showPromptResult.value = true
   
-  // 使用nextTick确保DOM更新
+  // 强制更新组件以确保响应式更新
+  if (instance) {
+    instance.proxy?.$forceUpdate()
+  }
+  
+  // 使用nextTick确保DOM更新完成
   nextTick(() => {
-    console.log('nextTick后promptResult.value:', promptResult.value)
-    console.log('DOM中是否存在.prompt-result元素:', !!document.querySelector('.prompt-result'))
+    // DOM更新完成后的回调
   })
 }
 
