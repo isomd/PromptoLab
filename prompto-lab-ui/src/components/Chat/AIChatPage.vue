@@ -912,20 +912,19 @@ const handleGeneratePrompt = async (answerData: any) => {
   updateActivity()
 
   try {
-    // 调用生成提示词API，传入sessionId和userId
-    const promptResult = await generatePrompt({
+    // 调用生成提示词API，触发后端生成提示词
+    // 注意：这里只是触发生成，真正的提示词内容会通过SSE消息返回
+    await generatePrompt({
       sessionId: session.value.sessionId,
       answer: answerData
     })
 
-    // 通过ref获取QuestionRenderer组件实例并设置提示词结果
-     if (questionRendererRef.value && questionRendererRef.value.setPromptResult) {
-       questionRendererRef.value.setPromptResult(promptResult)
-     }
+    // 不在这里设置提示词结果，等待SSE消息中的handleGenPromptMessage处理
+    // 真正的提示词内容会通过SSE消息在handleGenPromptMessage中处理
 
-    toast.success({
-      title: '生成成功',
-      message: '提示词已生成完成',
+    toast.info({
+      title: '生成中',
+      message: '正在生成提示词，请稍候...',
       duration: 2000
     })
 
