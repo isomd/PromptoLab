@@ -219,13 +219,20 @@
 
     <!-- 提示词结果展示 -->
     <div v-if="promptResult" class="prompt-result">
+      <!-- 调试信息 -->
+      <div style="display: none;">{{ console.log('模板中promptResult值:', promptResult) }}</div>
       <div class="prompt-result-container">
         <div class="prompt-result-header">
           <h3 class="result-title">生成的提示词</h3>
-          <button @click="copyPrompt" class="copy-btn" :class="{ copied: copySuccess }">
-            <span class="btn-icon">{{ copySuccess ? '✅' : '📋' }}</span>
-            <span class="btn-text">{{ copySuccess ? '已复制' : '复制' }}</span>
-          </button>
+          <div class="header-actions">
+            <button @click="copyPrompt" class="copy-btn" :class="{ copied: copySuccess }">
+              <span class="btn-icon">{{ copySuccess ? '✅' : '📋' }}</span>
+              <span class="btn-text">{{ copySuccess ? '已复制' : '复制' }}</span>
+            </button>
+            <button @click="closePromptResult" class="close-btn" title="关闭">
+              <span class="btn-icon">✕</span>
+            </button>
+          </div>
         </div>
         
         <div class="prompt-content">
@@ -393,6 +400,12 @@ watch(() => props.currentQuestion, (newQuestion, oldQuestion) => {
     resetAnswers()
   }
 }, { deep: true })
+
+// 监听promptResult变化
+watch(() => promptResult.value, (newValue, oldValue) => {
+  console.log('promptResult变化:', { oldValue, newValue })
+  console.log('promptResult是否为真值:', !!newValue)
+}, { immediate: true })
 
 // 方法
 const resetAnswers = () => {
@@ -632,9 +645,24 @@ const copyPrompt = async () => {
   }
 }
 
+// 关闭提示词结果
+const closePromptResult = () => {
+  promptResult.value = ''
+  copySuccess.value = false
+}
+
 // 暴露设置提示词结果的方法
 const setPromptResult = (result: string) => {
+  console.log('子组件setPromptResult被调用，参数:', result)
+  console.log('设置前promptResult.value:', promptResult.value)
   promptResult.value = result
+  console.log('设置后promptResult.value:', promptResult.value)
+  
+  // 使用nextTick确保DOM更新
+  nextTick(() => {
+    console.log('nextTick后promptResult.value:', promptResult.value)
+    console.log('DOM中是否存在.prompt-result元素:', !!document.querySelector('.prompt-result'))
+  })
 }
 
 // 暴露方法给父组件
@@ -1808,6 +1836,41 @@ defineExpose({
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 16px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(15, 15, 15, 0.8);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 50%;
+  color: #e8e8e8;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+}
+
+.close-btn:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  transform: scale(1.05);
+}
+
+.close-btn .btn-icon {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .result-title {

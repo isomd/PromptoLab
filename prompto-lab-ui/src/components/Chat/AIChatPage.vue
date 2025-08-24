@@ -225,7 +225,7 @@ const initializeSession = async () => {
 
 // 处理SSE消息
 const handleSSEMessage = (response: any) => {
-  // console.log('收到SSE消息:', response)
+  console.log('收到SSE消息:', response)
 
   // 更新活跃时间
   updateActivity()
@@ -306,10 +306,15 @@ const handleConnectionMessage = (response: any): boolean => {
 // 处理生成提示词消息
 const handleGenPromptMessage = (response: any): boolean => {
   if (response.genPrompt) {
+    console.log('收到genPrompt数据:', response.genPrompt)
+    console.log('questionRendererRef.value:', questionRendererRef.value)
+    
     try {
       // 通过ref调用子组件的setPromptResult方法显示提示词结果
       if (questionRendererRef.value && questionRendererRef.value.setPromptResult) {
+        console.log('调用子组件setPromptResult方法')
         questionRendererRef.value.setPromptResult(response.genPrompt)
+        console.log('setPromptResult调用完成')
         
         toast.success({
           title: '提示词生成成功',
@@ -318,6 +323,9 @@ const handleGenPromptMessage = (response: any): boolean => {
         })
       } else {
         console.warn('QuestionRenderer组件引用不可用，无法显示提示词结果')
+        console.log('questionRendererRef.value存在:', !!questionRendererRef.value)
+        console.log('setPromptResult方法存在:', questionRendererRef.value && !!questionRendererRef.value.setPromptResult)
+        
         toast.error({
           title: '显示失败',
           message: '无法显示提示词结果，请重试',
