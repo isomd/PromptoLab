@@ -2,9 +2,9 @@ package io.github.timemachinelab.core.session.application;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.suifeng.sfchain.core.AIService;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
 import io.github.timemachinelab.core.session.infrastructure.ai.QuestionGenerationOperation;
-import io.github.timemachinelab.sfchain.core.AIService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

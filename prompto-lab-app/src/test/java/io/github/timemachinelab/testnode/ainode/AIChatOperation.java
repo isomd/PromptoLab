@@ -1,7 +1,8 @@
 package io.github.timemachinelab.testnode.ainode;
 
-import io.github.timemachinelab.sfchain.annotation.AIOp;
-import io.github.timemachinelab.sfchain.core.BaseAIOperation;
+
+import com.suifeng.sfchain.annotation.AIOp;
+import com.suifeng.sfchain.core.BaseAIOperation;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

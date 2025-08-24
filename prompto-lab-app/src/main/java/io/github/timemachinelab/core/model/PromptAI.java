@@ -1,6 +1,6 @@
 package io.github.timemachinelab.core.model;
 
-import io.github.timemachinelab.sfchain.annotation.AIOp;
+import com.suifeng.sfchain.annotation.AIOp;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
