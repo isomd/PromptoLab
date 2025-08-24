@@ -1,10 +1,10 @@
 package io.github.timemachinelab.core.session.infrastructure.ai;
 
+import com.suifeng.sfchain.annotation.AIOp;
+import com.suifeng.sfchain.core.BaseAIOperation;
 import io.github.timemachinelab.core.question.BaseQuestion;
 import io.github.timemachinelab.core.question.QuestionParser;
 import io.github.timemachinelab.core.question.QuestionParseException;
-import io.github.timemachinelab.sfchain.annotation.AIOp;
-import io.github.timemachinelab.sfchain.core.BaseAIOperation;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;

@@ -45,3 +45,14 @@ spring:
     open-in-view: false
 
 
+# ===========================================
+# SF-Chain AI框架配置
+# ===========================================
+sf-chain:
+  # 授权配置
+  auth-token: "suifeng666"         # 授权Token（生产环境请修改）
+  authEnabled: true
+  persistence:
+    database-type: postgresql                    # 数据库类型
+
+
