@@ -75,6 +75,8 @@
           </div>
         </div>
 
+
+
         <div class="action-group">
           <button 
             @click="toggleQuickInput('model')"
@@ -103,6 +105,17 @@
               </button>
             </div>
           </div>
+        </div>
+
+        <div class="action-group">
+          <button 
+          @click="generatePrompt"
+           class="quick-btn"
+          :disabled="isLoading"
+        >
+          <span class="btn-icon">✨</span>
+          <span class="btn-text">生成提示词</span>
+        </button>
         </div>
       </div>
     </div>
@@ -193,12 +206,43 @@
         </button>
         
         <button 
-          @click="resetQuestion"
+          @click="generatePrompt"
           class="reset-btn"
+          :disabled="isLoading"
         >
-          <span class="btn-icon">🏠</span>
-          <span class="btn-text">重新开始</span>
+          <span class="btn-icon">✨</span>
+          <span class="btn-text">生成提示词</span>
         </button>
+      </div>
+      
+    </div>
+
+    <!-- 提示词结果展示 -->
+    <div v-if="promptResult" class="prompt-result">
+      <div class="prompt-result-container">
+        <div class="prompt-result-header">
+          <h3 class="result-title">生成的提示词</h3>
+          <button @click="copyPrompt" class="copy-btn" :class="{ copied: copySuccess }">
+            <span class="btn-icon">{{ copySuccess ? '✅' : '📋' }}</span>
+            <span class="btn-text">{{ copySuccess ? '已复制' : '复制' }}</span>
+          </button>
+        </div>
+        
+        <div class="prompt-content">
+          <pre class="prompt-text">{{ promptResult }}</pre>
+        </div>
+        
+        <div class="prompt-actions">
+          <button @click="regeneratePrompt" class="regenerate-btn" :disabled="isLoading">
+            <span class="btn-icon">🔄</span>
+            <span class="btn-text">重新生成</span>
+          </button>
+          
+          <button @click="continueChat" class="continue-btn">
+            <span class="btn-icon">💬</span>
+            <span class="btn-text">继续问答</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -240,6 +284,7 @@ import LoadingAnimation from './LoadingAnimation.vue'
 import SingleChoiceOptions from './SingleChoiceOptions.vue'
 import MultipleChoiceOptions from './MultipleChoiceOptions.vue'
 import FormField from './FormField.vue'
+import { generatePrompt as apiGeneratePrompt } from '@/services/userInteractionApi'
 
 // 定义问题类型接口
 interface Option {
@@ -298,6 +343,7 @@ const emit = defineEmits<{
   sendMessage: [content: string]
   submitAnswer: [answer: any]
   retryQuestion: [reason: string]
+  generatePrompt: [answer: any]
 }>()
 
 // 响应式数据
@@ -479,6 +525,10 @@ const submitAnswer = () => {
 const showRetryDialog = ref(false)
 const retryReason = ref('')
 
+// 提示词相关状态
+const promptResult = ref('')
+const copySuccess = ref(false)
+
 const retryQuestion = () => {
   // 显示重试原因输入对话框
   showRetryDialog.value = true
@@ -507,6 +557,90 @@ const resetQuestion = () => {
   // 发送重置信号
   emit('sendMessage', '重新开始')
 }
+
+// 提示词相关方法
+const generatePrompt = async () => {
+    try {
+      if (!isAnswerValid() || props.isLoading) return
+    
+    let answerData: any
+    
+    switch (props.currentQuestion!.type) {
+      case 'input':
+        answerData = answers.input.trim()
+        break
+      case 'single':
+        answerData = [answers.single]
+        break
+      case 'multi':
+        answerData = [...answers.multiple]
+        break
+      case 'form':
+        answerData = props.currentQuestion!.fields.map(field => ({
+          id: field.id,
+          value: field.type === 'input' 
+            ? [answers.form[field.id]] 
+            : field.type === 'single'
+            ? [answers.form[field.id]]
+            : answers.form[field.id] || []
+        }))
+        break
+    }
+    // 同时触发事件给父组件
+    emit('generatePrompt', answerData)
+  } catch (error) {
+    console.error('生成提示词失败:', error)
+    // 可以在这里添加错误提示
+  }
+}
+
+const regeneratePrompt = async () => {
+  promptResult.value = ''
+  await generatePrompt()
+}
+
+const continueChat = () => {
+  promptResult.value = ''
+  // 继续问答功能暂时不实现
+  console.log('继续问答功能待实现')
+}
+
+const copyPrompt = async () => {
+  try {
+    await navigator.clipboard.writeText(promptResult.value)
+    copySuccess.value = true
+    setTimeout(() => {
+      copySuccess.value = false
+    }, 2000)
+  } catch (error) {
+    console.error('复制失败:', error)
+    // 降级方案：使用传统方法复制
+    const textArea = document.createElement('textarea')
+    textArea.value = promptResult.value
+    document.body.appendChild(textArea)
+    textArea.select()
+    try {
+      document.execCommand('copy')
+      copySuccess.value = true
+      setTimeout(() => {
+        copySuccess.value = false
+      }, 2000)
+    } catch (fallbackError) {
+      console.error('降级复制也失败:', fallbackError)
+    }
+    document.body.removeChild(textArea)
+  }
+}
+
+// 暴露设置提示词结果的方法
+const setPromptResult = (result: string) => {
+  promptResult.value = result
+}
+
+// 暴露方法给父组件
+defineExpose({
+  setPromptResult
+})
 </script>
 
 <style scoped>
@@ -754,6 +888,151 @@ const resetQuestion = () => {
   gap: 24px;
   width: 100%;
   max-width: 600px;
+}
+
+/* 生成提示词区域样式 */
+.generate-prompt-section {
+  margin-top: 32px;
+  padding: 24px;
+  background: rgba(10, 10, 10, 0.6);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+}
+
+.prompt-divider {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.3), transparent);
+}
+
+.divider-text {
+  color: #d4af37;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px 12px;
+  background: rgba(10, 10, 10, 0.8);
+  border-radius: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.generate-prompt-btn {
+  position: relative;
+  width: 100%;
+  background: linear-gradient(135deg, rgba(15, 15, 15, 0.9), rgba(25, 25, 25, 0.9));
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 12px;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.generate-prompt-btn:hover:not(:disabled) {
+  border-color: rgba(212, 175, 55, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(212, 175, 55, 0.15);
+}
+
+.generate-prompt-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-glow {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  background: linear-gradient(45deg, #d4af37, #f4d03f, #d4af37, #f4d03f);
+  background-size: 400% 400%;
+  border-radius: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  animation: btn-glow-rotate 3s linear infinite;
+  z-index: -1;
+}
+
+.generate-prompt-btn:hover:not(:disabled) .btn-glow {
+  opacity: 0.2;
+}
+
+@keyframes btn-glow-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.btn-content {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.btn-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(212, 175, 55, 0.1);
+  border-radius: 10px;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.btn-icon {
+  font-size: 20px;
+  filter: drop-shadow(0 0 4px rgba(212, 175, 55, 0.6));
+}
+
+.btn-text-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.btn-title {
+  color: #e8e8e8;
+  font-size: 16px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.btn-desc {
+  color: #b8b8b8;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+.btn-arrow {
+  color: #d4af37;
+  font-size: 18px;
+  font-weight: bold;
+  transition: transform 0.3s ease;
+}
+
+.generate-prompt-btn:hover:not(:disabled) .btn-arrow {
+  transform: translateX(4px);
 }
 
 .action-group {
@@ -1472,6 +1751,171 @@ const resetQuestion = () => {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* 提示词结果展示样式 */
+.prompt-result {
+  margin-top: 32px;
+  padding: 0;
+  animation: slideInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.prompt-result-container {
+  background: linear-gradient(135deg, rgba(15, 15, 15, 0.95), rgba(25, 25, 25, 0.95));
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 24px;
+  padding: 32px;
+  width: 100%;
+  backdrop-filter: blur(20px);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.prompt-result-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #d4af37, transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.prompt-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.result-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ffffff 0%, #d4af37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(15, 15, 15, 0.8);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 12px;
+  color: #e8e8e8;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+}
+
+.copy-btn:hover {
+  border-color: rgba(212, 175, 55, 0.4);
+  background: rgba(25, 25, 25, 0.8);
+  transform: translateY(-1px);
+}
+
+.copy-btn.copied {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  border-color: #22c55e;
+  color: white;
+}
+
+.prompt-content {
+  margin-bottom: 32px;
+}
+
+.prompt-text {
+  background: rgba(10, 10, 10, 0.8);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 16px;
+  padding: 24px;
+  color: #e8e8e8;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
+  backdrop-filter: blur(10px);
+}
+
+.prompt-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.regenerate-btn, .continue-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  backdrop-filter: blur(10px);
+}
+
+.regenerate-btn {
+  background: rgba(15, 15, 15, 0.8);
+  border-color: rgba(212, 175, 55, 0.2);
+  color: #e8e8e8;
+}
+
+.regenerate-btn:hover:not(:disabled) {
+  border-color: rgba(212, 175, 55, 0.4);
+  background: rgba(25, 25, 25, 0.8);
+  transform: translateY(-2px);
+}
+
+.regenerate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.continue-btn {
+  background: linear-gradient(135deg, #d4af37, #f4d03f);
+  color: #1a1a1a;
+  border-color: #d4af37;
+}
+
+.continue-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(212, 175, 55, 0.4);
 }
 
 /* 重试对话框样式 */
