@@ -24,6 +24,12 @@ public class ConversationSession {
     private QaTree qaTree; // 移除final，允许后续设置
     private final LocalDateTime createTime;
     private LocalDateTime updateTime;
+
+    private String user; //用户画像
+    private String userTarget; // 用户目标
+    private String aiModel; // AI模型
+
+    private String genPrompt; // 生成提示词
     
     // 节点ID自增计数器，从1开始
     private final AtomicInteger nodeIdCounter = new AtomicInteger(0);
