@@ -2,9 +2,14 @@ package io.github.timemachinelab.core.session.application;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import io.github.timemachinelab.core.constant.AllPrompt;
 import com.suifeng.sfchain.core.AIService;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
+import io.github.timemachinelab.core.session.infrastructure.ai.GenPromptOperation;
 import io.github.timemachinelab.core.session.infrastructure.ai.QuestionGenerationOperation;
+import io.github.timemachinelab.sfchain.core.AIService;
+import io.github.timemachinelab.util.QaTreeSerializeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,7 +37,29 @@ public class ConversationService {
 
         processAIResponse(userMessage, sseCallback);
     }
-    
+
+    public void genPrompt(String sessionId, Consumer<GenPromptOperation.GpResponse> sseCallback){
+        ConversationSession session = sessionManagementService.getSessionById(sessionId);
+        GenPromptOperation.GpRequest req = new GenPromptOperation.GpRequest();
+
+        try {
+            req.setPrompt(AllPrompt.GEN_PROMPT_AGENT_PROMPT);
+            req.setUser(session.getUser());
+            req.setUserTarget(session.getUserTarget());
+            req.setAiModel(session.getAiModel());
+            req.setUserConversation(QaTreeSerializeUtil.serialize(session.getQaTree()));
+
+            GenPromptOperation.GpResponse aiResponse = aiService.execute("PromptGenMaster", req);
+            sseCallback.accept(aiResponse);
+        }catch (Exception e){
+            log.error("生成提示词失败 :{}",e.getMessage());
+            GenPromptOperation.GpResponse resp = new GenPromptOperation.GpResponse();
+            resp.setGenPrompt("生成提示词失败，请重试");
+            sseCallback.accept(resp);
+        }
+
+    }
+
     private void processAIResponse(String userMessage, Consumer<QuestionGenerationOperation.QuestionGenerationResponse> sseCallback) {
         try {
 

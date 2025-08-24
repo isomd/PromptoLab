@@ -6,14 +6,14 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-@AIOp(value = "CONVERSATION_OP",
-      description = "基于QATree的智能会话操作，支持上下文理解和结构化对话",
-      defaultModel = "gpt-4-turbo",
-      requireJsonOutput = true,
-      supportThinking = true,
-      defaultMaxTokens = 2048,
-      defaultTemperature = 0.8)
-@Component
+//@AIOp(value = "CONVERSATION_OP",
+//      description = "基于QATree的智能会话操作，支持上下文理解和结构化对话",
+//      defaultModel = "gpt-4-turbo",
+//      requireJsonOutput = true,
+//      supportThinking = true,
+//      defaultMaxTokens = 2048,
+//      defaultTemperature = 0.8)
+//@Component
 @Slf4j
 public class ConversationOperation extends BaseAIOperation<ConversationOperation.ConversationRequest, ConversationOperation.ConversationResponse> {
 
