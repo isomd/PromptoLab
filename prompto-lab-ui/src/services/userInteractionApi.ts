@@ -172,6 +172,36 @@ export const retryRequest = async (request: {
 }
 
 /**
+ * 生成提示词请求
+ */
+export const generatePrompt = async (request: {
+  sessionId: string | null
+  userId: string
+}): Promise<string> => {
+  const url = `${API_BASE}/gen-prompt`
+  
+  try {
+    const response = await apiRequest(url, {
+      method: 'POST',
+      body: JSON.stringify(request),
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      requireAuth: false
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    return await response.text()
+  } catch (error) {
+    console.error('生成提示词请求失败:', error)
+    throw error
+  }
+}
+
+/**
  * 关闭SSE连接
  */
 export const closeUserInteractionSSE = (eventSource: EventSource | null) => {

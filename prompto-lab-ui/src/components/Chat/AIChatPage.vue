@@ -36,8 +36,8 @@
 
     <!-- 中间问答主页面 -->
     <div class="main-content" :style="{ width: mainContentWidth + 'px' }">
-      <QuestionRenderer :current-question="currentQuestion" :is-loading="isLoading" @send-message="handleSendMessage"
-        @submit-answer="handleSubmitAnswer" @retry-question="handleRetryQuestion" />
+      <QuestionRenderer ref="questionRendererRef" :current-question="currentQuestion" :is-loading="isLoading" @send-message="handleSendMessage"
+        @submit-answer="handleSubmitAnswer" @retry-question="handleRetryQuestion" @generate-prompt="handleGeneratePrompt" />
     </div>
 
     <!-- 可拖拽的分隔条 -->
@@ -65,6 +65,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import QuestionRenderer from './QuestionRenderer.vue'
 import MindMapTree from './MindMapTree.vue'
 import { startConversation, sendMessage, sendUserMessage, connectSSE, closeSSE, processAnswer, connectUserInteractionSSE, retryQuestion, type MessageRequest, type MessageResponse, type ConversationSession, type UnifiedAnswerRequest, type FormAnswerItem, type RetryRequest } from '@/services/conversationApi'
+import { generatePrompt } from '@/services/userInteractionApi'
 import { toast } from '@/utils/toast'
 
 interface Message {
@@ -120,6 +121,9 @@ const isLoading = ref(false)
 
 // 问题状态管理
 const currentQuestion = ref<any>(null)
+
+// 子组件引用
+const questionRendererRef = ref<any>(null)
 
 // 确保SSE连接唯一性
 const ensureUniqueConnection = () => {
@@ -227,6 +231,26 @@ const handleSSEMessage = (response: any) => {
   updateActivity()
 
   // 处理连接建立消息
+  if (handleConnectionMessage(response)) {
+    return
+  }
+
+  // 处理生成提示词消息
+  if (handleGenPromptMessage(response)) {
+    return
+  }
+
+  // 处理新问题格式消息
+  if (handleQuestionMessage(response)) {
+    return
+  }
+
+  // 处理其他类型的消息
+  handleOtherMessages(response)
+}
+
+// 处理连接建立消息
+const handleConnectionMessage = (response: any): boolean => {
   if (response.type === 'connected' || response.sessionId) {
     // 这是连接建立时的会话信息
     if (response.sessionId) {
@@ -274,11 +298,47 @@ const handleSSEMessage = (response: any) => {
         duration: 2000
       })
     }
-    return
+    return true
   }
+  return false
+}
 
-  // 处理其他类型的消息
-  // 检查是否是新的问题格式（包含question对象）
+// 处理生成提示词消息
+const handleGenPromptMessage = (response: any): boolean => {
+  if (response.genPrompt) {
+    try {
+      // 通过ref调用子组件的setPromptResult方法显示提示词结果
+      if (questionRendererRef.value && questionRendererRef.value.setPromptResult) {
+        questionRendererRef.value.setPromptResult(response.genPrompt)
+        
+        toast.success({
+          title: '提示词生成成功',
+          message: '已为您生成优化的提示词',
+          duration: 3000
+        })
+      } else {
+        console.warn('QuestionRenderer组件引用不可用，无法显示提示词结果')
+        toast.error({
+          title: '显示失败',
+          message: '无法显示提示词结果，请重试',
+          duration: 3000
+        })
+      }
+    } catch (error) {
+      console.error('处理生成提示词消息失败:', error)
+      toast.error({
+        title: '处理失败',
+        message: '处理提示词结果时发生错误',
+        duration: 3000
+      })
+    }
+    return true
+  }
+  return false
+}
+
+// 处理新问题格式消息
+const handleQuestionMessage = (response: any): boolean => {
   if (response.question && response.question.type) {
     // 这是新的问题格式
     currentQuestion.value = response.question
@@ -328,9 +388,13 @@ const handleSSEMessage = (response: any) => {
 
     isLoading.value = false
     // console.log('收到新格式问题:', response.question, '当前节点ID:', response.currentNodeId, '父节点ID:', response.parentNodeId)
-    return
+    return true
   }
+  return false
+}
 
+// 处理其他类型的消息
+const handleOtherMessages = (response: any) => {
   const messageResponse = response as MessageResponse
   switch (messageResponse.type) {
     case 'AI_QUESTION':
@@ -833,6 +897,61 @@ const handleSubmitAnswer = async (answerData: any) => {
   }
 }
 
+// 处理生成提示词
+const handleGeneratePrompt = async (answerData: any) => {
+  if (!session.value) {
+    toast.error({
+      title: '生成失败',
+      message: '会话未建立，请先开始对话',
+      duration: 3000
+    })
+    return
+  }
+
+  // 更新活跃时间
+  updateActivity()
+
+  try {
+    // 调用生成提示词API，传入sessionId和userId
+    const promptResult = await generatePrompt({
+      sessionId: session.value.sessionId,
+      answer: answerData
+    })
+
+    // 通过ref获取QuestionRenderer组件实例并设置提示词结果
+     if (questionRendererRef.value && questionRendererRef.value.setPromptResult) {
+       questionRendererRef.value.setPromptResult(promptResult)
+     }
+
+    toast.success({
+      title: '生成成功',
+      message: '提示词已生成完成',
+      duration: 2000
+    })
+
+  } catch (error: any) {
+    console.error('生成提示词失败:', error)
+    
+    // 检查是否是会话相关错误
+    if (error.message && (error.message.includes('sessionId') || error.message.includes('会话'))) {
+      toast.error({
+        title: '会话异常',
+        message: '会话已失效，请刷新页面重新建立连接',
+        duration: 5000
+      })
+      // 清理当前会话状态
+      session.value = null
+      closeConnection()
+    } else {
+      toast.error({
+        title: '生成失败',
+        message: error.message || '提示词生成失败，请重试',
+        duration: 4000
+      })
+    }
+  }
+}
+
 const setNodeAndDescendantsInactive = (nodeId: string) => {
   const node = conversationTree.value.get(nodeId)
   if (node) {
@@ -882,7 +1001,7 @@ const handleNodeSelected = (nodeId: string) => {
         // 如果不是JSON格式，检查是否是问题文本格式
         // console.log('非JSON格式，检查是否为问题文本')
       }
-      
+
       // 方法2: 如果是问题文本但不是JSON格式，清除问题状态
       // 这种情况下显示为普通对话
       currentQuestion.value = null
