@@ -1,9 +1,8 @@
 package io.github.timemachinelab.core.session.application.impl;
 
-import com.alibaba.fastjson.JSONObject;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.gson.JsonObject;
-import dev.langchain4j.internal.Json;
+
+import com.alibaba.fastjson2.JSONObject;
+import com.fasterxml.jackson.core.JsonProcessingException;;
 import io.github.timemachinelab.core.constant.AllPrompt;
 import io.github.timemachinelab.core.qatree.QaTree;
 import io.github.timemachinelab.core.qatree.QaTreeDomain;
