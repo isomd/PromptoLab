@@ -272,7 +272,7 @@ public class UserInteractionController {
             }
 
             // 答案更新逻辑已在MessageProcessingService中处理
-
+            messageProcessingService.processAnswer(request);
             // 4. 处理答案并转换为消息
             String processedMessage = messageProcessingService.preprocessMessage(
                     null, // 没有额外的原始消息
