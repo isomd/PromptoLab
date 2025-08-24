@@ -55,8 +55,8 @@
             
             <!-- 节点图标 -->
             <text 
-              :x="12"
-              :y="20"
+              x="12"
+              y="25"
               class="node-icon"
             >
               {{ node.type === 'user' ? '👤' : '🤖' }}
@@ -64,8 +64,8 @@
             
             <!-- 节点文本 -->
             <text 
-              :x="35"
-              :y="16"
+              x="35"
+              y="21"
               class="node-text"
             >
               {{ node.truncatedText }}
@@ -184,32 +184,16 @@ const layoutNodes = computed(() => {
   // 基于节点宽度和字体大小计算最大字符数
   // 节点宽度200px，减去图标35px和右侧边距20px，可用宽度约145px
   // 字体大小13px，平均字符宽度约8px（中文）或6px（英文）
-  const availableWidth = maxWidth - 55 // 减去图标和边距
-  const avgCharWidth = /[\u4e00-\u9fa5]/.test(text) ? 8 : 6 // 中文字符更宽
+  const availableWidth = maxWidth - 75 // 减去图标和边距
+  const avgCharWidth = /[\u4e00-\u9fa5]/.test(text) ? 10 : 8 // 中文字符更宽
   const maxChars = Math.floor(availableWidth / avgCharWidth)
   
   if (text.length <= maxChars) {
     return text
   }
   
-  // 优先在标点符号处截断
-  const punctuation = /[。！？；，、]/
   let truncateIndex = maxChars - 4 // 为省略号留空间
   
-  // 向前查找最近的标点符号
-  for (let i = truncateIndex; i >= Math.max(0, truncateIndex - 10); i--) {
-    if (punctuation.test(text[i])) {
-      truncateIndex = i + 1
-      break
-    }
-  }
-  
-  // 避免在单词中间截断（英文）
-  if (!/[\u4e00-\u9fa5]/.test(text)) {
-    while (truncateIndex > 0 && text[truncateIndex] !== ' ' && text[truncateIndex - 1] !== ' ') {
-      truncateIndex--
-    }
-  }
   
   return text.substring(0, truncateIndex).trim() + '...'
 }

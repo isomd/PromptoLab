@@ -32,11 +32,11 @@
     </div>
 
     <div class="chat-messages" ref="messagesContainer">
-      <MessageItem v-for="message in messages" :key="message.id" :message="message"
+      <div class="chat-history">
+        <MessageItem v-for="message in messages" :key="message.id" :message="message"
         :is-streaming="isMessageStreaming(message.id)" />
-      <DynamicSelect :fieldConfig="fieldConfig" :modelValue="val" :isDark="true" @change="change"/>
-      <DynamicSelect :fieldConfig="fieldConfig2" :modelValue="val2" :isDark="true" @change="change"/>
-
+      </div>
+      
       <div class="chat-input">
         <div class="input-container">
           <div class="input-wrapper">
@@ -65,83 +65,6 @@
 import { ref, nextTick, watch } from 'vue'
 import DynamicSelect from './DynamicSelect.vue'
 import MessageItem from './MessageItem.vue'
-const fieldConfig = ref<any>({
-  "id": "question1",
-  "type": "radio",
-  "title": "您的年龄段是？",
-  "description": "请选择您的年龄段",
-  "options": [
-    { "value": "18-25", "label": "18-25岁", "weight": 1 },
-    { "value": "26-35", "label": "26-35岁", "weight": 2 },
-    { "value": "36-45", "label": "36-45岁", "weight": 3 }
-  ],
-  "allowOther": true,
-  "required": true,
-  "validation": {
-    "rules": [
-      { "type": "required", "message": "请选择一个选项" }
-    ]
-  }
-})
-const fieldConfig2 = ref<any>({
-  "id": "interests",
-  "type": "checkbox",
-  "title": "您对哪些技术领域感兴趣？",
-  "description": "请选择您感兴趣的技术领域（可多选）",
-  "options": [
-    {
-      "value": "frontend",
-      "label": "前端开发",
-      "description": "HTML、CSS、JavaScript、Vue、React等",
-      "weight": 5
-    },
-    {
-      "value": "backend",
-      "label": "后端开发",
-      "description": "Node.js、Python、Java、数据库等",
-      "weight": 4
-    },
-    {
-      "value": "mobile",
-      "label": "移动开发",
-      "description": "iOS、Android、React Native、Flutter等",
-      "weight": 3
-    },
-    {
-      "value": "ai",
-      "label": "人工智能",
-      "description": "机器学习、深度学习、自然语言处理等",
-      "weight": 5
-    },
-    {
-      "value": "devops",
-      "label": "DevOps",
-      "description": "CI/CD、Docker、Kubernetes、云服务等",
-      "weight": 2
-    }
-  ],
-  "allowOther": true,
-  "otherPlaceholder": "请输入其他感兴趣的技术领域...",
-  "required": true,
-  "validation": {
-    "rules": [
-      {
-        "type": "required",
-        "message": "请至少选择一个技术领域"
-      },
-      {
-        "type": "custom",
-        "message": "最多只能选择4个选项",
-        "validator": (value:[]) => Array.isArray(value) && value.length <= 4
-      }
-    ]
-  }
-})
-const change = (e)=>{
-  alert(e)
-}
-const val = ref('')
-const val2 = ref('')
 interface Message {
   id: string
   content: string
@@ -739,14 +662,15 @@ watch(() => props.messages.length, () => {
   font-weight: 500;
   font-style: italic;
 }
-
+.chat-history{
+  min-height: calc(100%-240px);
+}
 /* 输入区域 - 奢华设计 */
 .chat-input {
-  padding: 24px 32px 32px;
+  padding: 24px 32px 32px 24px;
   background: linear-gradient(135deg, rgba(8, 8, 8, 0.9), rgba(18, 18, 18, 0.9));
   backdrop-filter: blur(24px) saturate(180%);
   border-top: 1px solid rgba(212, 175, 55, 0.15);
-  position: relative;
   z-index: 2;
   box-shadow:
     0 -1px 0 rgba(212, 175, 55, 0.1),
