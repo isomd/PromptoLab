@@ -1,14 +1,13 @@
 package io.github.timemachinelab.core.session.application;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
-import com.fasterxml.jackson.core.JsonProcessingException;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import io.github.timemachinelab.core.constant.AllPrompt;
 import com.suifeng.sfchain.core.AIService;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
 import io.github.timemachinelab.core.session.infrastructure.ai.GenPromptOperation;
 import io.github.timemachinelab.core.session.infrastructure.ai.QuestionGenerationOperation;
-import io.github.timemachinelab.sfchain.core.AIService;
 import io.github.timemachinelab.util.QaTreeSerializeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
