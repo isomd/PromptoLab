@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import io.github.timemachinelab.core.constant.AllPrompt;
+import com.suifeng.sfchain.core.AIService;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
 import io.github.timemachinelab.core.session.infrastructure.ai.GenPromptOperation;
 import io.github.timemachinelab.core.session.infrastructure.ai.QuestionGenerationOperation;
@@ -58,7 +59,7 @@ public class ConversationService {
         }
 
     }
-    
+
     private void processAIResponse(String userMessage, Consumer<QuestionGenerationOperation.QuestionGenerationResponse> sseCallback) {
         try {
 
