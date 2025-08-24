@@ -54,13 +54,7 @@ public class OpenAIHttpClient {
         try {
             // 智能构建endpoint，避免重复的/v1路径
             String endpoint;
-            if (baseUrl.endsWith("/v1") || baseUrl.contains("/v1/")) {
-                // baseUrl已包含v1路径，直接添加chat/completions
-                endpoint = baseUrl + (baseUrl.endsWith("/") ? "" : "/") + "chat/completions";
-            } else {
-                // baseUrl不包含v1路径，添加完整路径
-                endpoint = baseUrl + "/v1/chat/completions";
-            }
+            endpoint = baseUrl;
             String requestBody = JSON.toJSONString(request);
             
             log.debug("发送请求到: {}", endpoint);
