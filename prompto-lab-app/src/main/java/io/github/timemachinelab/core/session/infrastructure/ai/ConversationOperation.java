@@ -1,6 +1,5 @@
 package io.github.timemachinelab.core.session.infrastructure.ai;
 
-import com.suifeng.sfchain.annotation.AIOp;
 import com.suifeng.sfchain.core.BaseAIOperation;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;

@@ -1,8 +1,9 @@
 package io.github.timemachinelab.core.session.infrastructure.ai;
 
 import com.alibaba.fastjson2.JSONObject;
-import io.github.timemachinelab.sfchain.annotation.AIOp;
-import io.github.timemachinelab.sfchain.core.BaseAIOperation;
+
+import com.suifeng.sfchain.annotation.AIOp;
+import com.suifeng.sfchain.core.BaseAIOperation;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
