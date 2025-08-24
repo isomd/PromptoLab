@@ -143,15 +143,6 @@ onUnmounted(() => {
           </div>
           <div class="nav-glow"></div>
         </RouterLink>
-        <RouterLink to="/settings" class="nav-link">
-          <div class="nav-content">
-            <div class="nav-icon-wrapper">
-              <span class="nav-icon">⚙</span>
-            </div>
-            <span class="nav-text">设置</span>
-          </div>
-          <div class="nav-glow"></div>
-        </RouterLink>
       </nav>
 
       <!-- 右侧操作区域 - 更精致的设计 -->

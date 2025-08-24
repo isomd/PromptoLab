@@ -24,23 +24,7 @@ const router = createRouter({
       meta: {
         title: 'AI构建器 - PromptoLab'
       }
-    },
-    {
-      path: '/settings',
-      name: 'settings',
-      component: () => import('../views/SettingsView.vue'),
-      meta: {
-        title: '系统设置 - AI诗人'
-      }
-    },
-    {
-      path: '/settings/api-config',
-      name: 'api-config',
-      component: () => import('../views/ApiConfigView.vue'),
-      meta: {
-        title: 'API配置 - AI诗人'
-      }
-    },
+    }
   ]
 })
 
