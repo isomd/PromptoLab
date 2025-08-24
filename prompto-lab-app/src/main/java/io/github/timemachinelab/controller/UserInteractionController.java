@@ -287,6 +287,12 @@ public class UserInteractionController {
             return ResponseEntity.internalServerError().body("答案处理失败: " + e.getMessage());
         }
     }
+
+    @GetMapping("/gen-prompt")
+    public void genPrompt(@RequestParam String sessionId) {
+        
+    }
+
     
     /**
      * 获取SSE连接状态
