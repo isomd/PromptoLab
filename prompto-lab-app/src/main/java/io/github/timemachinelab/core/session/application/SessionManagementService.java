@@ -2,12 +2,15 @@ package io.github.timemachinelab.core.session.application;
 
 import io.github.timemachinelab.core.qatree.QaTree;
 import io.github.timemachinelab.core.qatree.QaTreeDomain;
+import io.github.timemachinelab.core.qatree.QaTreeNode;
 import io.github.timemachinelab.core.session.domain.entity.ConversationSession;
+import io.github.timemachinelab.core.session.infrastructure.web.dto.SessionDetailResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
@@ -239,10 +242,6 @@ public class SessionManagementService {
      */
     public String getNodeQuestion(String sessionId, String nodeId) {
         ConversationSession session = sessions.get(sessionId);
-        if (session == null) {
-            log.warn("会话不存在: {}", sessionId);
-            return null;
-        }
         
         QaTree tree = session.getQaTree();
         return qaTreeDomain.getNodeQuestion(tree, nodeId);
@@ -317,6 +316,39 @@ public class SessionManagementService {
         stats.put("averageSessionsPerUser", userSessionMap.isEmpty() ? 0 : (double) totalUserSessions / userSessionMap.size());
         stats.put("timestamp", System.currentTimeMillis());
         return stats;
+    }
+
+    /**
+     * 获取会话详细信息
+     * 
+     * @param sessionId 会话ID
+     * @return 会话详细信息，如果会话不存在则返回null
+     */
+    public SessionDetailResponse getSessionDetail(String sessionId) {
+        ConversationSession session = sessions.get(sessionId);
+        if (session == null) {
+            return null;
+        }
+        
+        // 获取最后节点的问题内容和创建时间
+        String lastNodeQuestion = null;
+        LocalDateTime lastNodeCreateTime = session.getCreateTime(); // 默认使用会话创建时间
+        if (session.getQaTree() != null && session.getCurrentNode() != null) {
+            // 获取当前节点
+            QaTreeNode currentNode = session.getQaTree().getNodeById(session.getCurrentNode());
+            if (currentNode != null) {
+                lastNodeQuestion = qaTreeDomain.getNodeQuestion(session.getQaTree(), session.getCurrentNode());
+                // 使用节点的创建时间
+                lastNodeCreateTime = currentNode.getCreateTime();
+            }
+        }
+        
+        return new SessionDetailResponse(
+            session.getSessionId(),
+            lastNodeCreateTime,
+            lastNodeQuestion,
+            session.getUpdateTime()
+        );
     }
 
     private QaTree createDefaultQaTree() {

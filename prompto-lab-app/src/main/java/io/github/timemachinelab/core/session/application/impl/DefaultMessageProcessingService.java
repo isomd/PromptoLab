@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import dev.langchain4j.internal.Json;
 import io.github.timemachinelab.core.constant.AllPrompt;
 import io.github.timemachinelab.core.constant.RetryPrompt;
+import io.github.timemachinelab.core.qatree.QaTreeNode;
 import io.github.timemachinelab.core.session.application.ConversationService;
 import io.github.timemachinelab.core.qatree.QaTree;
 import io.github.timemachinelab.core.qatree.QaTreeDomain;
@@ -150,7 +151,7 @@ public class DefaultMessageProcessingService implements MessageProcessingService
             
             // 构建完整的消息对象
             JSONObject messageObject = new JSONObject();
-            messageObject.put("prompt", RetryPrompt.RETRY_PROMPT);
+            messageObject.put("prompt", AllPrompt.GLOBAL_PROMPT);
             messageObject.put("tree", QaTreeSerializeUtil.serialize(conversationSession.getQaTree()));
             messageObject.put("input", retryObject.toString());
             
@@ -174,12 +175,14 @@ public class DefaultMessageProcessingService implements MessageProcessingService
                 processedMessage, 
                 response -> {
                     log.info("AI服务响应成功 - sessionId: {}", session.getSessionId());
-                    
+
+                    // 更新会话qaTree
+                    QaTreeNode node = qaTreeDomain.appendNode(session.getQaTree(), response.getParentId(), response.getQuestion(), session);
+
+                    // 更新会话当前节点
+                    session.setCurrentNode(node.getId());
                     try {
                         // 通过SSE发送AI响应给前端
-                        // 注意：这里需要获取用户指纹来发送SSE消息
-                        // 由于当前方法没有直接访问指纹的方式，需要通过session的userId来查找
-                        // 暂时使用userId作为指纹标识（需要根据实际业务逻辑调整）
                         String fingerprint = session.getUserId();
                         
                         // 构建要发送的响应数据，只包含用户指定的字段

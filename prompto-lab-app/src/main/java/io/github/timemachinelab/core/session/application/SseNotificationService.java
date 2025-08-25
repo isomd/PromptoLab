@@ -43,11 +43,22 @@ public class SseNotificationService {
         // 如果用户已有连接，先移除旧连接
         SseEmitter oldEmitter = sseEmitters.get(fingerprint);
         if (oldEmitter != null) {
-            return;
+            oldEmitter.complete(); // 完成旧连接
         }
 
         sseEmitters.put(fingerprint, emitter);
         log.info("SSE连接已注册 - 用户指纹: {}", fingerprint);
+        
+        // 添加连接完成和超时的回调
+        emitter.onCompletion(() -> {
+            sseEmitters.remove(fingerprint);
+            log.info("SSE连接已完成 - 用户指纹: {}", fingerprint);
+        });
+        
+        emitter.onTimeout(() -> {
+            sseEmitters.remove(fingerprint);
+            log.info("SSE连接已超时 - 用户指纹: {}", fingerprint);
+        });
     }
 
     /**
@@ -56,7 +67,10 @@ public class SseNotificationService {
      * @param fingerprint 用户指纹
      */
     public void removeSseConnection(String fingerprint) {
-        sseEmitters.remove(fingerprint);
+        SseEmitter emitter = sseEmitters.remove(fingerprint);
+        if (emitter != null) {
+            emitter.complete();
+        }
         log.info("SSE连接已移除 - 用户指纹: {}", fingerprint);
     }
 
@@ -99,9 +113,16 @@ public class SseNotificationService {
                     .data(data));
                 log.info("SSE事件发送成功 - 用户指纹: {}, 事件: {}", fingerprint, eventName);
             } catch (IOException e) {
-                log.error("SSE事件发送失败 - 用户指纹: {}, 事件: {}, 错误: {}", fingerprint, eventName, e.getMessage());
+                log.warn("SSE事件发送失败 - 用户指纹: {}, 事件: {}, 错误: {}", fingerprint, eventName, e.getMessage());
+                // 移除失效的连接
+                sseEmitters.remove(fingerprint);
+            } catch (IllegalStateException e) {
+                log.warn("SSE连接已关闭 - 用户指纹: {}, 事件: {}, 错误: {}", fingerprint, eventName, e.getMessage());
+                // 移除已关闭的连接
                 sseEmitters.remove(fingerprint);
             }
+        } else {
+            log.warn("SSE连接不存在 - 用户指纹: {}, 事件: {}", fingerprint, eventName);
         }
     }
 
@@ -123,7 +144,6 @@ public class SseNotificationService {
      * @param fingerprint 用户指纹
      */
     public void sendErrorMessage(String fingerprint, String msg) {
-
         sendMessage(fingerprint,msg,"500",false);
     }
 

@@ -34,7 +34,7 @@
           </div>
           <div class="session-items">
             <div 
-              v-for="sessionItem in mockSessionList" 
+              v-for="sessionItem in sessionList" 
               :key="sessionItem.id"
               class="session-item"
               :class="{ active: sessionItem.id === currentSessionId }"
@@ -86,7 +86,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import QuestionRenderer from './QuestionRenderer.vue'
 import MindMapTree from './MindMapTree.vue'
-import { startConversation, sendMessage, sendUserMessage, connectSSE, closeSSE, processAnswer, connectUserInteractionSSE, retryQuestion, type MessageRequest, type MessageResponse, type ConversationSession, type UnifiedAnswerRequest, type FormAnswerItem, type RetryRequest } from '@/services/conversationApi'
+import { startConversation, sendMessage, sendUserMessage, connectSSE, closeSSE, processAnswer, connectUserInteractionSSE, retryQuestion, fetchSessionList, type MessageRequest, type MessageResponse, type ConversationSession, type UnifiedAnswerRequest, type FormAnswerItem, type RetryRequest, type SessionItem } from '@/services/conversationApi'
 import { generatePrompt } from '@/services/userInteractionApi'
 import { toast } from '@/utils/toast'
 
@@ -132,51 +132,53 @@ const isInitializing = ref(false)
 
 // 指纹和会话列表
 const FINGERPRINT_KEY = 'prompto_lab_fingerprint'
+const SESSION_LIST_KEY = 'prompto_lab_session_list'
+const CURRENT_SESSION_ID_KEY = 'prompto_lab_current_session_id'
 const fingerprint = ref<string>(localStorage.getItem(FINGERPRINT_KEY) || '')
-const sessionList = ref<any[]>([])
+const sessionList = ref<SessionItem[]>([])
 const currentSessionId = ref<string>('')
+
+// 保存会话列表到localStorage
+const saveSessionList = (sessions: SessionItem[]) => {
+  try {
+    localStorage.setItem(SESSION_LIST_KEY, JSON.stringify(sessions))
+  } catch (e) {
+    console.error('保存会话列表失败:', e)
+  }
+}
+
+// 保存当前会话ID到localStorage
+const saveCurrentSessionId = (sessionId: string) => {
+  try {
+    localStorage.setItem(CURRENT_SESSION_ID_KEY, sessionId)
+  } catch (e) {
+    console.error('保存当前会话ID失败:', e)
+  }
+}
+
+// 从localStorage加载会话列表
+const loadSessionListFromStorage = (): SessionItem[] => {
+  try {
+    const stored = localStorage.getItem(SESSION_LIST_KEY)
+    return stored ? JSON.parse(stored) : []
+  } catch (e) {
+    console.error('加载会话列表失败:', e)
+    return []
+  }
+}
+
+// 从localStorage加载当前会话ID
+const loadCurrentSessionIdFromStorage = (): string => {
+  try {
+    return localStorage.getItem(CURRENT_SESSION_ID_KEY) || ''
+  } catch (e) {
+    console.error('加载当前会话ID失败:', e)
+    return ''
+  }
+}
 
 // 侧边栏展开状态
 const sidebarExpanded = ref<boolean>(true)
-
-// Mock会话数据
-const mockSessionList = ref([
-  {
-    id: 'session-1',
-    title: '如何学习Vue 3',
-    lastMessage: '可以从官方文档开始，然后通过实际项目练习...',
-    updatedAt: new Date(Date.now() - 1000 * 60 * 30), // 30分钟前
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2) // 2小时前
-  },
-  {
-    id: 'session-2', 
-    title: 'TypeScript最佳实践',
-    lastMessage: 'TypeScript的类型系统可以帮助我们在编译时发现错误...',
-    updatedAt: new Date(Date.now() - 1000 * 60 * 60), // 1小时前
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3) // 3小时前
-  },
-  {
-    id: 'session-3',
-    title: 'Vite配置优化',
-    lastMessage: '可以通过配置别名、代码分割等方式来优化构建性能...',
-    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2小时前
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4) // 4小时前
-  },
-  {
-    id: 'session-4',
-    title: 'CSS Grid布局详解',
-    lastMessage: 'Grid布局提供了强大的二维布局能力，适合复杂的页面结构...',
-    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6小时前
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8) // 8小时前
-  },
-  {
-    id: 'session-5',
-    title: 'API设计规范',
-    lastMessage: 'RESTful API设计应该遵循统一的命名规范和HTTP状态码...',
-    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1天前
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 25) // 25小时前
-  }
-])
 
 // 保存指纹到localStorage
 const saveFingerprint = (fp: string) => {
@@ -199,6 +201,24 @@ const isLoading = ref(false)
 const setLoading = (loading: boolean) => {
   isLoading.value = loading
 }
+
+// 加载会话列表 - 从SSE连接返回的数据中获取，不再单独请求
+// const loadSessionList = async () => {
+//   try {
+//     sessionList.value = await fetchSessionList()
+//     if (sessionList.value.length > 0) {
+//       currentSessionId.value = sessionList.value[0].id
+//     }
+//   } catch (error) {
+//     console.error('Failed to load session list:', error)
+//     toast.error('加载会话列表失败')
+//   }
+// }
+
+// 在组件挂载后不需要立即加载会话列表，而是等待SSE连接返回数据
+// onMounted(() => {
+//   loadSessionList()
+// })
 
 // 问题状态管理
 const currentQuestion = ref<any>(null)
@@ -224,6 +244,9 @@ const ensureUniqueConnection = () => {
     clearTimeout(activityTimeout.value)
     activityTimeout.value = null
   }
+
+  // 重置重连尝试次数
+  retryCount = MAX_RETRY_COUNT
 }
 
 // 更新活跃时间
@@ -378,9 +401,27 @@ const handleConnectionMessage = (response: any): boolean => {
       console.log('已保存指纹:', fingerprint)
     }
     
-    if (response.sessionList) {
-      sessionList.value = response.sessionList
-      console.log('已更新会话列表:', response.sessionList)
+    // 处理新的会话详细信息格式
+    if (response.sessionList && Array.isArray(response.sessionList)) {
+      // 将SessionDetailResponse对象转换为SessionItem对象
+      sessionList.value = response.sessionList.map((sessionDetail: any) => ({
+        id: sessionDetail.sessionId,
+        title: sessionDetail.lastNodeQuestion || '新会话',
+        lastMessage: sessionDetail.lastNodeQuestion || '无内容',
+        updatedAt: sessionDetail.updateTime || new Date().toISOString(),
+        createdAt: sessionDetail.lastNodeCreateTime || new Date().toISOString()
+      }))
+      console.log('已更新会话列表:', sessionList.value)
+      
+      // 保存会话列表到localStorage
+      saveSessionList(sessionList.value)
+      
+      // 如果有会话列表且当前没有设置currentSessionId，则设置为第一个会话
+      if (sessionList.value.length > 0 && !currentSessionId.value) {
+        currentSessionId.value = sessionList.value[0].id
+        // 保存当前会话ID到localStorage
+        saveCurrentSessionId(currentSessionId.value)
+      }
     }
     
     // 这是连接建立时的会话信息
@@ -394,12 +435,12 @@ const handleConnectionMessage = (response: any): boolean => {
       console.log('会话已建立:', session.value)
 
       // 后端总是会返回nodeId，新会话返回'1'，已存在会话返回实际的nodeId
-      if (response.nodeId) {
-        currentNodeId.value = response.nodeId
+      if (response.currentNodeId) {
+        currentNodeId.value = response.currentNodeId
         // console.log('会话节点ID:', response.nodeId)
 
         // 如果是根节点，初始化根节点
-        if (response.nodeId === '1') {
+        if (response.currentNodeId === '1') {
           const rootNode: ConversationNode = {
             id: '1',
             content: '您好！我是AI助手，有什么可以帮助您的吗？',
@@ -429,7 +470,16 @@ const handleConnectionMessage = (response: any): boolean => {
         duration: 2000
       })
     } else {
+      // 如果没有sessionId但有sessionList，设置连接状态为已连接
+      // 但不设置具体的会话，允许后续操作创建新会话
+      isConnected.value = true
       console.warn('SSE连接建立消息中缺少sessionId:', response)
+      
+      toast.success({
+        title: '连接已建立',
+        message: '已连接到服务，可以开始对话',
+        duration: 2000
+      })
     }
     return true
   }
@@ -626,12 +676,11 @@ const handleOtherMessages = (response: any) => {
   }
 }
 
-var retryCount = 1
+// 重连尝试次数
+const MAX_RETRY_COUNT = 3
+let retryCount = MAX_RETRY_COUNT
 // 处理SSE错误
 const handleSSEError = (error: Event) => {
-
-  if (retryCount <= 0) return
-  retryCount--
   console.error('SSE连接错误:', error)
   isConnected.value = false
 
@@ -661,6 +710,13 @@ const handleSSEError = (error: Event) => {
 
         // 重新启动活跃监控
         updateActivity()
+      }
+    }, 3000)
+  } else if (!isInitializing.value) {
+    // 如果没有会话信息，也尝试重新初始化
+    setTimeout(() => {
+      if (!isConnected.value && !isInitializing.value) {
+        initializeSession()
       }
     }, 3000)
   }
@@ -806,14 +862,16 @@ const switchToSession = (sessionId: string) => {
   if (currentSessionId.value === sessionId) return
   
   currentSessionId.value = sessionId
+  // 保存当前会话ID到localStorage
+  saveCurrentSessionId(sessionId)
   // 这里后续会调用API加载会话历史
   toast.info(`切换到会话: ${sessionId}`)
 }
 
 const deleteSession = (sessionId: string) => {
-  const index = mockSessionList.value.findIndex(s => s.id === sessionId)
+  const index = sessionList.value.findIndex(s => s.id === sessionId)
   if (index > -1) {
-    mockSessionList.value.splice(index, 1)
+    sessionList.value.splice(index, 1)
     toast.success('会话已删除')
     
     // 如果删除的是当前会话，切换到新对话
@@ -823,22 +881,57 @@ const deleteSession = (sessionId: string) => {
   }
 }
 
-const formatTime = (date: Date) => {
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  
-  const minutes = Math.floor(diff / (1000 * 60))
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (minutes < 60) {
-    return `${minutes}分钟前`
-  } else if (hours < 24) {
-    return `${hours}小时前`
-  } else if (days < 7) {
-    return `${days}天前`
+const formatTime = (date: Date | string) => {
+  // 如果传入的是字符串，尝试解析为Date对象
+  let dateObj: Date;
+  if (typeof date === 'string') {
+    // 处理后端返回的时间格式
+    if (date.includes('.')) {
+      // 处理带纳秒的时间格式，如 "2025-08-26 02:45:50.591607900"
+      const parts = date.split('.');
+      if (parts.length > 1) {
+        // 只取前3位小数（毫秒）
+        const milliseconds = parts[1].substring(0, 3);
+        // 将空格替换为T以符合ISO格式
+        const isoString = parts[0].replace(' ', 'T') + '.' + milliseconds;
+        date = isoString;
+      }
+    } else if (date.includes(' ')) {
+      // 处理 "2025-08-26 02:45:55" 格式
+      date = date.replace(' ', 'T');
+    }
+    dateObj = new Date(date);
   } else {
-    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+    dateObj = date;
+  }
+  
+  // 检查日期是否有效
+  if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+    return '未知时间';
+  }
+  
+  const now = new Date();
+  const diff = now.getTime() - dateObj.getTime();
+  
+  // 检查差值是否有效
+  if (isNaN(diff)) {
+    return '未知时间';
+  }
+  
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  
+  if (minutes < 1) {
+    return '刚刚';
+  } else if (minutes < 60) {
+    return `${minutes}分钟前`;
+  } else if (hours < 24) {
+    return `${hours}小时前`;
+  } else if (days < 7) {
+    return `${days}天前`;
+  } else {
+    return dateObj.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
   }
 }
 
@@ -854,6 +947,21 @@ onMounted(() => {
     isActive: true
   }
   conversationTree.value.set('1', rootNode)
+  
+  // 尝试从localStorage加载会话历史
+  const storedSessionList = loadSessionListFromStorage()
+  const storedCurrentSessionId = loadCurrentSessionIdFromStorage()
+  
+  if (storedSessionList.length > 0) {
+    sessionList.value = storedSessionList
+    console.log('从localStorage加载会话列表:', sessionList.value)
+  }
+  
+  if (storedCurrentSessionId) {
+    currentSessionId.value = storedCurrentSessionId
+    console.log('从localStorage加载当前会话ID:', currentSessionId.value)
+  }
+  
   initializeSession()
   updateContainerWidth()
   window.addEventListener('resize', updateContainerWidth)
@@ -1136,6 +1244,9 @@ const handleSubmitAnswer = async (answerData: any) => {
         })
         answerContent = `表单回答：\n${formAnswers.join('\n')}`
         break
+      default:
+        answerContent = `未知类型：${answerData}`
+        break
     }
 
     const userNode: ConversationNode = {
@@ -1199,14 +1310,33 @@ const handleSubmitAnswer = async (answerData: any) => {
 
 // 处理生成提示词
 const handleGeneratePrompt = async (answerData: any) => {
-  if (!session.value) {
-    toast.error({
-      title: '生成失败',
-      message: '会话未建立，请先开始对话',
-      duration: 3000
-    })
-    return
+  console.log('开始处理生成提示词请求', {
+    currentQuestion: currentQuestion.value,
+    session: session.value,
+    currentNodeId: currentNodeId.value,
+    answerData: answerData
+  });
+  
+  // 检查是否有输入内容
+  const hasInputContent = answerData && 
+    ((typeof answerData === 'string' && answerData.trim().length > 0) || 
+     (Array.isArray(answerData) && answerData.length > 0) ||
+     (typeof answerData === 'object' && Object.keys(answerData).length > 0));
+  
+  if (!hasInputContent) {
+    toast.error('请输入内容后再生成提示词。');
+    return;
   }
+  
+  // 注意：这里不再检查session.value是否存在，因为后端支持在没有sessionId时创建新会话
+  // if (!session.value) {
+  //   toast.error({
+  //     title: '生成失败',
+  //     message: '会话未建立，请先开始对话',
+  //     duration: 3000
+  //   })
+  //   return
+  // }
 
   // 更新活跃时间
   updateActivity()
@@ -1214,11 +1344,16 @@ const handleGeneratePrompt = async (answerData: any) => {
   try {
     // 调用生成提示词API，触发后端生成提示词
     // 注意：这里只是触发生成，真正的提示词内容会通过SSE消息返回
-    await generatePrompt({
-      sessionId: session.value?.sessionId || '', // sessionId可选，空字符串表示新会话
+    const genPromptRequest = {
+      // sessionId可选，不提供时后端会创建新会话
+      sessionId: session.value?.sessionId || null, 
       nodeId: currentNodeId.value,
       answer: answerData
-    })
+    };
+    
+    console.log('发送生成提示词请求:', genPromptRequest);
+    
+    await generatePrompt(genPromptRequest)
 
     // 不在这里设置提示词结果，等待SSE消息中的handleGenPromptMessage处理
     // 真正的提示词内容会通过SSE消息在handleGenPromptMessage中处理

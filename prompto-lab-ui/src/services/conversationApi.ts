@@ -1,5 +1,5 @@
-import { apiRequest } from './apiUtils'
 import { API_CONFIG } from './apiConfig'
+ import { apiRequest } from './apiUtils'
 
 // 类型定义
 export interface MessageRequest {
@@ -26,6 +26,15 @@ export interface ConversationSession {
   createdAt: string
 }
 
+export interface SessionItem {
+  id: string
+  title: string
+  lastMessage: string
+  updatedAt: string
+  createdAt: string
+}
+
+
 // 统一答案请求接口
 export interface UnifiedAnswerRequest {
   sessionId?: string // sessionId可选，不带时默认新会话
@@ -43,6 +52,7 @@ export interface FormAnswerItem {
 // API基础URL
 const API_BASE = `${API_CONFIG.BASE_URL}/api/demo`
 const USER_INTERACTION_BASE = `${API_CONFIG.BASE_URL}/api/user-interaction`
+const CONVERSATION_BASE = `${API_CONFIG.BASE_URL}/api/conversation`
 
 /**
  * 创建新的会话（真实版本 - 对接后端会话管理）
@@ -96,6 +106,18 @@ export const getSession = async (sessionId: string): Promise<ConversationSession
     currentNodeId: 'root',
     createdAt: new Date().toISOString()
   }
+}
+
+/**
+ * 获取会话列表
+ */
+export const fetchSessionList = async (): Promise<SessionItem[]> => {
+  const url = `${CONVERSATION_BASE}/sessions`
+  const response = await apiRequest(url, {
+    method: 'GET',
+    requireAuth: false
+  })
+  return response.data
 }
 
 /**

@@ -83,21 +83,21 @@ public class RetryProcessingService {
             log.warn("节点问题内容为空 - nodeId: {}, sessionId: {}", nodeId, sessionId);
             throw new SessionException("SSE连接验证失败: 节点问题内容为空");
         }
-        
-        // 4. 移除要重试的节点（AI会基于parentId重新创建节点）
-        boolean nodeRemoved = sessionManagementService.removeNode(sessionId, nodeId);
-        if (!nodeRemoved) {
-            log.warn("移除节点失败 - sessionId: {}, nodeId: {}", sessionId, nodeId);
-            throw new RuntimeException("移除节点失败");
-        }
-        
-        // 5. 使用MessageProcessingService处理重试消息
+
+        // 4. 使用MessageProcessingService处理重试消息
         String processedMessage = messageProcessingService.processRetryMessage(
                 sessionId,
                 nodeId,
                 whyRetry,
                 session
         );
+
+        // 5. 移除要重试的节点（AI会基于parentId重新创建节点）
+        boolean nodeRemoved = sessionManagementService.removeNode(sessionId, nodeId);
+        if (!nodeRemoved) {
+            log.warn("移除节点失败 - sessionId: {}, nodeId: {}", sessionId, nodeId);
+            throw new RuntimeException("移除节点失败");
+        }
         
         log.info("重试请求处理完成 - sessionId: {}, nodeId: {}", sessionId, nodeId);
         return new RetryProcessingResult(session, processedMessage);

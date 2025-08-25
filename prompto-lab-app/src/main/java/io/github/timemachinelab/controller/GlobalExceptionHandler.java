@@ -1,5 +1,6 @@
 package io.github.timemachinelab.controller;
 
+import io.github.timemachinelab.core.session.application.SseNotificationService;
 import io.github.timemachinelab.core.session.application.SseValidationService;
 import io.github.timemachinelab.core.session.application.SessionException;
 import io.github.timemachinelab.entity.resp.ApiResult;
@@ -24,7 +25,8 @@ public class GlobalExceptionHandler {
     
     @Resource
     private SseValidationService sseValidationService;
-    
+    @Resource
+    SseNotificationService sseNotificationService;
     /**
      * 处理SSE验证异常
      * 
@@ -38,7 +40,7 @@ public class GlobalExceptionHandler {
         
         // 尝试通过SSE发送错误消息
         sseValidationService.sendSseErrorIfConnected(request, e.getMessage());
-        
+        sseNotificationService.sendErrorMessage(null, e.getMessage());
         // 根据请求路径返回不同格式的响应
         String requestPath = request.getRequestURI();
         if (requestPath.contains("/retry")) {

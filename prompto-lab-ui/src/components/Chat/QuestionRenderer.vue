@@ -571,37 +571,74 @@ const resetQuestion = () => {
 
 // 提示词相关方法
 const generatePrompt = async () => {
-    try {
-      if (!isAnswerValid() || props.isLoading) return
+  console.log('QuestionRenderer: 开始生成提示词', {
+    currentQuestion: props.currentQuestion,
+    isLoading: props.isLoading,
+    isAnswerValid: isAnswerValid(),
+    inputAnswer: answers.input,
+    quickInputs: quickInputs,
+    mainInput: mainInput.value
+  });
+  
+  try {
+    // 检查是否有输入内容
+    let answerData: any = null;
     
-    let answerData: any
-    
-    switch (props.currentQuestion!.type) {
-      case 'input':
-        answerData = answers.input.trim()
-        break
-      case 'single':
-        answerData = [answers.single]
-        break
-      case 'multi':
-        answerData = [...answers.multiple]
-        break
-      case 'form':
-        answerData = props.currentQuestion!.fields.map(field => ({
-          id: field.id,
-          value: field.type === 'input' 
-            ? [answers.form[field.id]] 
-            : field.type === 'single'
-            ? [answers.form[field.id]]
-            : answers.form[field.id] || []
-        }))
-        break
+    if (props.currentQuestion) {
+      // 如果有当前问题，按照问题类型处理
+      if (!isAnswerValid() || props.isLoading) {
+        console.log('QuestionRenderer: 答案无效或正在加载中，取消生成提示词');
+        return;
+      }
+      
+      switch (props.currentQuestion.type) {
+        case 'input':
+          answerData = answers.input.trim()
+          break
+        case 'single':
+          answerData = [answers.single]
+          break
+        case 'multi':
+          answerData = [...answers.multiple]
+          break
+        case 'form':
+          answerData = props.currentQuestion.fields.map(field => ({
+            id: field.id,
+            value: field.type === 'input' 
+              ? [answers.form[field.id]] 
+              : field.type === 'single'
+              ? [answers.form[field.id]]
+              : answers.form[field.id] || []
+          }))
+          break
+      }
+    } else {
+      // 如果没有当前问题，检查快速输入或主输入框
+      if (quickInputs.introduce && quickInputs.introduce.trim().length > 0) {
+        answerData = '自我介绍：' + quickInputs.introduce.trim();
+      } else if (quickInputs.model && quickInputs.model.trim().length > 0) {
+        answerData = '使用模型：' + quickInputs.model.trim();
+      } else if (mainInput.value && mainInput.value.trim().length > 0) {
+        answerData = mainInput.value.trim();
+      } else {
+        console.log('QuestionRenderer: 没有输入内容，取消生成提示词');
+        toast.error('请输入内容后再生成提示词。');
+        return;
+      }
     }
+    
+    if (!answerData) {
+      console.log('QuestionRenderer: 没有有效的输入内容，取消生成提示词');
+      toast.error('请输入内容后再生成提示词。');
+      return;
+    }
+    
+    console.log('QuestionRenderer: 准备发送生成提示词事件', { answerData });
     // 同时触发事件给父组件
     emit('generatePrompt', answerData)
   } catch (error) {
     console.error('生成提示词失败:', error)
-    // 可以在这里添加错误提示
+    toast.error('生成提示词失败，请重试。');
   }
 }
 

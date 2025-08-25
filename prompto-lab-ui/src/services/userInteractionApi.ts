@@ -129,6 +129,8 @@ export const generatePrompt = async (request: {
 }): Promise<string> => {
   const url = `${API_BASE}/gen-prompt`
   
+  console.log('准备发送生成提示词请求:', { url, request });
+  
   try {
     const response = await apiRequest(url, {
       method: 'POST',
@@ -138,6 +140,8 @@ export const generatePrompt = async (request: {
       },
       requireAuth: false
     })
+    
+    console.log('收到生成提示词响应:', { status: response.status, ok: response.ok });
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
@@ -151,12 +155,43 @@ export const generatePrompt = async (request: {
 }
 
 /**
+ * 对话历史响应类型
+ */
+export interface ConversationHistoryResponse {
+  sessionId: string;
+  userId: string;
+  currentNode: string;
+  createTime: string;
+  updateTime: string;
+  qaTree: any;
+}
+
+/**
+ * 获取对话历史
+ */
+export const getConversationHistory = async (sessionId: string): Promise<ApiResult<ConversationHistoryResponse>> => {
+  const url = `${API_BASE}/history?sessionId=${encodeURIComponent(sessionId)}`;
+  
+  try {
+    const response = await apiJsonRequest<ApiResult<ConversationHistoryResponse>>(url, {
+      method: 'GET',
+      requireAuth: false
+    });
+    
+    return response;
+  } catch (error) {
+    console.error('获取对话历史失败:', error);
+    throw error;
+  }
+};
+
+/**
  * 关闭SSE连接
  */
 export const closeUserInteractionSSE = (eventSource: EventSource | null) => {
   if (eventSource) {
-    eventSource.close()
-    console.log('用户交互SSE连接已关闭')
+    eventSource.close();
+    console.log('用户交互SSE连接已关闭');
   }
 }
 
