@@ -216,9 +216,9 @@ public class UserInteractionController {
             // 1. 从请求头获取和验证用户指纹（与SSE连接保持一致）
             UserFingerprint userFingerprint = fingerprintService.getOrCreateUserFingerprint(httpRequest);
             String fingerprint = userFingerprint.getFingerprint();
-            
+
             log.info("用户指纹: {}, 访问次数: {}", fingerprint, userFingerprint.getVisitCount());
-            
+
             // 2. 验证请求体中的userId是否与指纹匹配（可选验证）
             String requestUserId = request.getUserId();
             if (requestUserId != null && !requestUserId.equals(fingerprint)) {
