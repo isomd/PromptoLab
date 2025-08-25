@@ -1,7 +1,7 @@
 package io.github.timemachinelab.testnode.controller;
 
+import com.suifeng.sfchain.core.AIService;
 import io.github.timemachinelab.testnode.ainode.AIChatOperation;
-import io.github.timemachinelab.sfchain.core.AIService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
