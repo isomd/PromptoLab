@@ -10,8 +10,6 @@ export interface FormAnswerItem {
 // 统一答案请求类型
 export interface UnifiedAnswerRequest {
   sessionId: string | null
-  nodeId: string | null
-  userId: string
   questionType: 'single' | 'multi' | 'input' | 'form'
   answer: string | string[] | FormAnswerItem[]
   context?: Record<string, any>
@@ -72,58 +70,8 @@ export const sendAnswer = async (request: UnifiedAnswerRequest): Promise<string>
   }
 }
 
-/**
- * 建立SSE连接
- */
-export const connectUserInteractionSSE = (
-  sessionId: string | null,
-  userId: string,
-  onMessage: (response: MessageResponse) => void, 
-  onError?: (error: Event) => void
-): EventSource => {
-  // 构建查询参数
-  const params = new URLSearchParams()
-  if (sessionId) {
-    params.append('sessionId', sessionId)
-  }
-  params.append('userId', userId)
-  
-  const url = `${API_BASE}/sse?${params.toString()}`
-  const eventSource = new EventSource(url)
-  
-  // 监听连接建立事件
-  eventSource.addEventListener('connected', (event: MessageEvent) => {
-    console.log('用户交互SSE连接已建立:', event.data)
-  })
-  
-  // 监听消息事件
-  eventSource.addEventListener('message', (event: MessageEvent) => {
-    try {
-      const response: MessageResponse = JSON.parse(event.data)
-      onMessage(response)
-    } catch (error) {
-      console.error('解析SSE消息失败:', error)
-      // 如果JSON解析失败，创建一个简单的响应
-      const fallbackResponse: MessageResponse = {
-        nodeId: `fallback_${Date.now()}`,
-        content: event.data,
-        type: 'AI_QUESTION',
-        timestamp: Date.now()
-      }
-      onMessage(fallbackResponse)
-    }
-  })
-  
-  // 错误处理
-  eventSource.onerror = (error: Event) => {
-    console.error('用户交互SSE连接错误:', error)
-    if (onError) {
-      onError(error)
-    }
-  }
-  
-  return eventSource
-}
+// SSE连接功能已迁移到 conversationApi.ts 中的 connectUserInteractionSSE 方法
+// 请使用 import { connectUserInteractionSSE } from './conversationApi' 来建立SSE连接
 
 /**
  * 获取SSE连接状态
@@ -176,7 +124,8 @@ export const retryRequest = async (request: {
  */
 export const generatePrompt = async (request: {
   sessionId: string | null
-  userId: string
+  nodeId?: string
+  answer?: any
 }): Promise<string> => {
   const url = `${API_BASE}/gen-prompt`
   
@@ -216,43 +165,35 @@ export const createAnswerRequest = {
   /**
    * 创建单选题答案请求
    */
-  single: (sessionId: string | null, nodeId: string | null, userId: string, selectedOption: string): UnifiedAnswerRequest => ({
+  single: (sessionId: string | null, selectedOption: string): UnifiedAnswerRequest => ({
     sessionId,
-    nodeId,
-    userId,
     questionType: 'single',
     answer: [selectedOption]
   }),
-  
+
   /**
    * 创建多选题答案请求
    */
-  multi: (sessionId: string | null, nodeId: string | null, userId: string, selectedOptions: string[]): UnifiedAnswerRequest => ({
+  multi: (sessionId: string | null, selectedOptions: string[]): UnifiedAnswerRequest => ({
     sessionId,
-    nodeId,
-    userId,
     questionType: 'multi',
     answer: selectedOptions
   }),
-  
+
   /**
    * 创建输入框答案请求
    */
-  input: (sessionId: string | null, nodeId: string | null, userId: string, inputText: string): UnifiedAnswerRequest => ({
+  input: (sessionId: string | null, inputText: string): UnifiedAnswerRequest => ({
     sessionId,
-    nodeId,
-    userId,
     questionType: 'input',
     answer: inputText
   }),
-  
+
   /**
    * 创建表单答案请求
    */
-  form: (sessionId: string | null, nodeId: string | null, userId: string, formAnswers: FormAnswerItem[]): UnifiedAnswerRequest => ({
+  form: (sessionId: string | null, formAnswers: FormAnswerItem[]): UnifiedAnswerRequest => ({
     sessionId,
-    nodeId,
-    userId,
     questionType: 'form',
     answer: formAnswers
   })

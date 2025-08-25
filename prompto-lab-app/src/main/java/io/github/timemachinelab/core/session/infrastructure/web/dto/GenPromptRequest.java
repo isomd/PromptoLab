@@ -14,10 +14,6 @@ import javax.validation.constraints.NotBlank;
 public class GenPromptRequest {
 
     private String sessionId;
-
-    private String nodeId;
-
-
     /**
      * 原始答案数据
      * - 单选/多选：List<String>

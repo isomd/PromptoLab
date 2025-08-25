@@ -3,7 +3,7 @@ import { API_CONFIG } from './apiConfig'
 
 // 类型定义
 export interface MessageRequest {
-  sessionId: string
+  sessionId?: string // sessionId可选，不带时默认新会话
   content: string
   type: 'USER_TEXT' | 'USER_SELECTION'
   questionId?: string
@@ -28,12 +28,10 @@ export interface ConversationSession {
 
 // 统一答案请求接口
 export interface UnifiedAnswerRequest {
-  sessionId: string
-  nodeId?: string
+  sessionId?: string // sessionId可选，不带时默认新会话
   questionType: 'single' | 'multi' | 'input' | 'form'
   answer: any // 根据questionType不同，类型不同
   context?: Record<string, any>
-  userId: string
 }
 
 // 表单答案项
@@ -109,7 +107,6 @@ export const connectSSE = (sessionId: string, onMessage: (response: MessageRespo
 
   // 监听连接建立事件
   eventSource.addEventListener('connected', (event: MessageEvent) => {
-    console.log('SSE连接已建立:', event.data)
   })
 
   // 监听普通消息
@@ -172,14 +169,12 @@ export const connectSSE = (sessionId: string, onMessage: (response: MessageRespo
  * 发送用户消息到用户交互接口
  * 对接后端的用户交互消息接口
  */
-export const sendUserMessage = async (request: MessageRequest, userId: string, nodeId?: string): Promise<void> => {
+export const sendUserMessage = async (request: MessageRequest): Promise<void> => {
   // 构建统一答案请求格式
   const unifiedRequest: UnifiedAnswerRequest = {
-    sessionId: request.sessionId,
-    nodeId: nodeId, // 包含nodeId字段
+    sessionId: request.sessionId || '', // sessionId可选，空字符串表示新会话
     questionType: 'input', // 普通文本消息作为input类型
-    answer: request.content,
-    userId: userId
+    answer: request.content
   }
   
   const url = `${USER_INTERACTION_BASE}/message`
@@ -218,9 +213,10 @@ export const connectUserInteractionSSE = (onMessage: (response: any) => void, on
   const url = `${USER_INTERACTION_BASE}/sse`
   const eventSource = new EventSource(url)
 
+
+
   // 监听连接建立事件
   eventSource.addEventListener('connected', (event: MessageEvent) => {
-    console.log('用户交互SSE连接已建立:', event.data)
     try {
       // 解析连接数据并传递给onMessage回调
       const connectionData = JSON.parse(event.data)
@@ -239,6 +235,26 @@ export const connectUserInteractionSSE = (onMessage: (response: any) => void, on
       onMessage(response)
     } catch (error) {
       console.error('解析用户交互SSE消息失败:', error)
+    }
+  })
+
+  // 监听成功消息事件
+  eventSource.addEventListener('success', (event: MessageEvent) => {
+    try {
+      const response = JSON.parse(event.data)
+      onMessage(response)
+    } catch (error) {
+      console.error('解析成功消息失败:', error)
+    }
+  })
+
+  // 监听错误消息事件
+  eventSource.addEventListener('error', (event: MessageEvent) => {
+    try {
+      const response = JSON.parse(event.data)
+      onMessage(response)
+    } catch (error) {
+      console.error('解析错误消息失败:', error)
     }
   })
 

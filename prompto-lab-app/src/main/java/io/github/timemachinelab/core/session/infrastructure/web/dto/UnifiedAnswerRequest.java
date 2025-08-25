@@ -28,11 +28,6 @@ public class UnifiedAnswerRequest {
     private String sessionId;
     
     /**
-     * 节点ID
-     */
-    private String nodeId;
-    
-    /**
      * 问题类型：single, multi, input, form
      */
     @NotBlank(message = "问题类型不能为空")
@@ -55,11 +50,6 @@ public class UnifiedAnswerRequest {
     private String userPortrait;
     private String aiModel;
 
-    /**
-     * 用户ID
-     */
-    @NotBlank(message = "用户ID不能为空")
-    private String userId;
     /**
      * 表单答案项
      */
