@@ -4,204 +4,243 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletRequest;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
+import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 用户指纹服务
- * 基于请求的稳定特征生成指纹（在无可信代理前提下，仅信任直连 IP）
- * @author
- * @date 2025/1/27
+ * 用于生成和管理用户指纹信息
+ * 
+ * @author welsir
+ * @date 2025/1/20
  */
-@Service
 @Slf4j
+@Service
 public class FingerprintService {
-
-    // 指纹到用户信息的映射（内存态，进程重启会丢失；生产可换成持久层或分布式缓存）
-    private final Map<String, UserFingerprint> fingerprintMap = new ConcurrentHashMap<>();
-
+    
     /**
-     * 生成用户指纹
-     * 仅基于不可伪造的直连 IP 和若干相对稳定的 HTTP 头部（做了规范化）
+     * 用户指纹缓存
      */
-    public String generateFingerprint(HttpServletRequest request) {
-        // 基础字段（均已做规范化）
-        String ip = getRemoteIp(request);
-        String ua = normalizeUserAgent(request.getHeader("User-Agent"));
-        String lang = normalizeAcceptLanguage(request.getHeader("Accept-Language"));
-        String enc = normalizeCsvHeader(request.getHeader("Accept-Encoding"));
-        String host = normalizeHost(request.getHeader("Host"));
-
-        String raw = "ip:" + ip +
-                "|ua:" + ua +
-                "|lang:" + lang +
-                "|enc:" + enc +
-                "|host:" + host;
-
-        // 降低日志敏感度：不打印完整 UA/原串
-        if (log.isDebugEnabled()) {
-            log.debug("raw fp summary -> ip={}, uaKey={}, lang={}, encKey={}, host={}",
-                    ip, shortUaKey(ua), lang, enc.equals("unknown") ? "unknown" : "hashed", host);
-        }
-
-        String sha256 = sha256Hex(raw);
-        // 默认输出 128 位（32 hex），如需 64 位可改为 substring(0,16)
-        String fingerprint = sha256.substring(0, 32);
-        log.info("生成用户指纹: {} (ip: {}, port: {})", fingerprint, ip, getClientPort(request));
-        return fingerprint;
-    }
-
+    private final Map<String, UserFingerprint> fingerprintCache = new ConcurrentHashMap<>();
+    
     /**
-     * 获取或创建用户指纹信息
+     * 获取或创建用户指纹
+     * 
+     * @param request HTTP请求对象
+     * @return 用户指纹信息
      */
     public UserFingerprint getOrCreateUserFingerprint(HttpServletRequest request) {
-        String fingerprint = generateFingerprint(request);
-        long now = System.currentTimeMillis();
-
-        return fingerprintMap.compute(fingerprint, (fp, existing) -> {
-            if (existing == null) {
-                UserFingerprint uf = UserFingerprint.builder()
-                        .fingerprint(fp)
-                        .firstSeen(now)
-                        .lastSeen(now)
-                        .visitCount(1)
-                        .lastIp(getRemoteIp(request))
-                        .userAgent(safeTrim(request.getHeader("User-Agent")))
-                        .build();
-                log.info("创建新用户指纹: {}", fp);
-                return uf;
-            } else {
-                existing.setLastSeen(now);
-                existing.setVisitCount(existing.getVisitCount() + 1);
-                existing.setLastIp(getRemoteIp(request));
-                // 可选：更新 UA（若你希望记录最近一次 UA）
-                String ua = safeTrim(request.getHeader("User-Agent"));
-                if (!"unknown".equals(ua)) {
-                    existing.setUserAgent(ua);
-                }
-                log.info("更新现有用户指纹: {}, 访问次数: {}", fp, existing.getVisitCount());
-                return existing;
+        try {
+            // 生成指纹ID
+            String fingerprintId = generateFingerprint(request);
+            
+            // 检查缓存中是否已存在
+            UserFingerprint existingFingerprint = fingerprintCache.get(fingerprintId);
+            
+            if (existingFingerprint != null) {
+                // 更新访问信息
+                existingFingerprint.setVisitCount(existingFingerprint.getVisitCount() + 1);
+                existingFingerprint.setLastVisitTime(LocalDateTime.now());
+                
+                log.debug("用户指纹已存在: {}, 访问次数: {}", fingerprintId, existingFingerprint.getVisitCount());
+                return existingFingerprint;
             }
-        });
+            
+            // 创建新的用户指纹
+            UserFingerprint newFingerprint = UserFingerprint.builder()
+                    .fingerprint(fingerprintId)
+                    .displayName(generateDisplayName())
+                    .visitCount(1)
+                    .firstVisitTime(LocalDateTime.now())
+                    .lastVisitTime(LocalDateTime.now())
+                    .ipAddress(getClientIpAddress(request))
+                    .userAgent(request.getHeader("User-Agent"))
+                    .build();
+            
+            // 存入缓存
+            fingerprintCache.put(fingerprintId, newFingerprint);
+            
+            log.info("创建新用户指纹: {}, 显示名称: {}", fingerprintId, newFingerprint.getDisplayName());
+            return newFingerprint;
+            
+        } catch (Exception e) {
+            log.error("生成用户指纹失败: {}", e.getMessage(), e);
+            // 返回默认指纹
+            return createDefaultFingerprint();
+        }
+    }
+    
+    /**
+     * 生成用户指纹ID
+     * 
+     * @param request HTTP请求对象
+     * @return 指纹ID
+     */
+    private String generateFingerprint(HttpServletRequest request) {
+        try {
+            StringBuilder fingerprintData = new StringBuilder();
+            
+            // 获取客户端IP
+            String clientIp = getClientIpAddress(request);
+            fingerprintData.append(clientIp);
+            
+            // 获取User-Agent
+            String userAgent = request.getHeader("User-Agent");
+            if (userAgent != null) {
+                fingerprintData.append(userAgent);
+            }
+            
+            // 获取Accept-Language
+            String acceptLanguage = request.getHeader("Accept-Language");
+            if (acceptLanguage != null) {
+                fingerprintData.append(acceptLanguage);
+            }
+            
+            // 使用MD5生成指纹
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(fingerprintData.toString().getBytes());
+            
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : digest) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            
+            return hexString.toString();
+            
+        } catch (NoSuchAlgorithmException e) {
+            log.error("MD5算法不可用，使用UUID作为指纹: {}", e.getMessage());
+            return UUID.randomUUID().toString().replace("-", "");
+        }
+    }
+    
+    /**
+     * 获取客户端真实IP地址
+     * 
+     * @param request HTTP请求对象
+     * @return 客户端IP地址
+     */
+    private String getClientIpAddress(HttpServletRequest request) {
+        String[] headerNames = {
+            "X-Forwarded-For",
+            "X-Real-IP",
+            "Proxy-Client-IP",
+            "WL-Proxy-Client-IP",
+            "HTTP_CLIENT_IP",
+            "HTTP_X_FORWARDED_FOR"
+        };
+        
+        for (String headerName : headerNames) {
+            String ip = request.getHeader(headerName);
+            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
+                // 多个IP时取第一个
+                if (ip.contains(",")) {
+                    ip = ip.split(",")[0].trim();
+                }
+                return ip;
+            }
+        }
+        
+        return request.getRemoteAddr();
+    }
+    
+    /**
+     * 生成用户显示名称
+     * 
+     * @return 显示名称
+     */
+    private String generateDisplayName() {
+        String[] adjectives = {"聪明的", "勇敢的", "友善的", "创新的", "睿智的", "活跃的", "优雅的", "坚强的"};
+        String[] nouns = {"探索者", "创造者", "思考者", "学习者", "建设者", "梦想家", "实践者", "先锋"};
+        
+        int adjIndex = (int) (Math.random() * adjectives.length);
+        int nounIndex = (int) (Math.random() * nouns.length);
+        
+        return adjectives[adjIndex] + nouns[nounIndex];
+    }
+    
+    /**
+     * 创建默认指纹（当生成失败时使用）
+     * 
+     * @return 默认用户指纹
+     */
+    private UserFingerprint createDefaultFingerprint() {
+        String defaultId = UUID.randomUUID().toString().replace("-", "");
+        
+        return UserFingerprint.builder()
+                .fingerprint(defaultId)
+                .displayName("匿名用户")
+                .visitCount(1)
+                .firstVisitTime(LocalDateTime.now())
+                .lastVisitTime(LocalDateTime.now())
+                .ipAddress("unknown")
+                .userAgent("unknown")
+                .build();
+    }
+    
+    /**
+     * 获取已存在的用户指纹（不创建新指纹）
+     * 
+     * @param request HTTP请求对象
+     * @return 用户指纹信息，如果不存在则返回null
+     */
+    public UserFingerprint getExistingUserFingerprint(HttpServletRequest request) {
+        try {
+            // 生成指纹ID
+            String fingerprintId = generateFingerprint(request);
+            
+            // 只从缓存中获取，不创建新的
+            UserFingerprint existingFingerprint = fingerprintCache.get(fingerprintId);
+            
+            if (existingFingerprint != null) {
+                // 更新访问信息
+                existingFingerprint.setVisitCount(existingFingerprint.getVisitCount() + 1);
+                existingFingerprint.setLastVisitTime(LocalDateTime.now());
+                
+                log.debug("获取已存在用户指纹: {}, 访问次数: {}", fingerprintId, existingFingerprint.getVisitCount());
+                return existingFingerprint;
+            }
+            
+            log.debug("用户指纹不存在: {}", fingerprintId);
+            return null;
+            
+        } catch (Exception e) {
+            log.error("获取用户指纹失败: {}", e.getMessage(), e);
+            return null;
+        }
     }
 
     /**
-     * 根据指纹获取用户信息
+     * 获取指纹缓存统计信息
+     * 
+     * @return 缓存统计信息
      */
-    public UserFingerprint getUserFingerprintByFingerprint(String fingerprint) {
-        return fingerprintMap.get(fingerprint);
-    }
-
-    /**
-     * 获取指纹统计信息
-     */
-    public Map<String, Object> getFingerprintStats() {
+    public Map<String, Object> getCacheStats() {
         Map<String, Object> stats = new ConcurrentHashMap<>();
-        stats.put("totalFingerprints", fingerprintMap.size());
-        stats.put("timestamp", System.currentTimeMillis());
+        stats.put("totalFingerprints", fingerprintCache.size());
+        stats.put("cacheSize", fingerprintCache.size());
         return stats;
     }
-
-    // ============================
-    // 内部工具与规范化方法
-    // ============================
-
-    // 只信任直连 IP，不解析任何可伪造头
-    private String getRemoteIp(HttpServletRequest request) {
-        if (request == null) return "unknown";
-        String ip = request.getRemoteAddr();
-        return ip != null ? ip.trim() : "unknown";
-    }
-
-    private int getClientPort(HttpServletRequest request) {
-        return request != null ? request.getRemotePort() : -1;
-    }
-
-    private String safeTrim(String s) {
-        return (s == null || s.isBlank()) ? "unknown" : s.trim();
-    }
-
-    // 规范化 UA：可选抽取主浏览器与主版本，降低版本小变动的影响
-    private String normalizeUserAgent(String ua) {
-        if (ua == null || ua.isBlank()) return "unknown";
-        String v = ua.trim();
-        String lower = v.toLowerCase();
-
-        String browser = null;
-        String version = null;
-        String[] markers = {"chrome/", "firefox/", "safari/", "edg/", "edge/", "opera/", "opr/"};
-        for (String m : markers) {
-            int i = lower.indexOf(m);
-            if (i >= 0) {
-                browser = m.replace("/", "");
-                int j = i + m.length();
-                int k = j;
-                while (k < lower.length() && (Character.isDigit(lower.charAt(k)) || lower.charAt(k) == '.')) k++;
-                String ver = lower.substring(j, k);
-                version = ver.isEmpty() ? null : ver.split("\\.")[0]; // 主版本
-                break;
-            }
-        }
-        if (browser != null && version != null) {
-            return browser + "/" + version;
-        }
-        // 找不到就返回原 UA，避免过度丢失信息
-        return v;
-    }
-
-    // 规范化 Accept-Language：取第一项，去掉 ;q= 权重，小写
-    private String normalizeAcceptLanguage(String al) {
-        if (al == null || al.isBlank()) return "unknown";
-        String first = al.split(",")[0].trim();
-        int q = first.indexOf(';');
-        if (q >= 0) first = first.substring(0, q).trim();
-        return first.toLowerCase();
-    }
-
-    // 规范化 CSV 类头（如 Accept-Encoding）：去空白、小写、排序，稳定顺序
-    private String normalizeCsvHeader(String h) {
-        if (h == null || h.isBlank()) return "unknown";
-        String[] parts = Arrays.stream(h.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(String::toLowerCase)
-                .sorted()
-                .toArray(String[]::new);
-        if (parts.length == 0) return "unknown";
-        return String.join(",", parts);
-    }
-
-    private String normalizeHost(String host) {
-        if (host == null || host.isBlank()) return "unknown";
-        return host.trim().toLowerCase();
-    }
-
-    private String shortUaKey(String uaNorm) {
-        if (uaNorm == null || uaNorm.isBlank() || "unknown".equalsIgnoreCase(uaNorm)) return "unknown";
-        // 仅用于日志摘要
-        int max = Math.min(20, uaNorm.length());
-        return uaNorm.substring(0, max);
-    }
-
-    private String sha256Hex(String s) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hashBytes = md.digest(s.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(hashBytes.length * 2);
-            for (byte b : hashBytes) {
-                String h = Integer.toHexString(b & 0xff);
-                if (h.length() == 1) hex.append('0');
-                hex.append(h);
-            }
-            return hex.toString();
-        } catch (NoSuchAlgorithmException e) {
-            // 极少发生：作为回退，返回固定值避免抛异常影响主流程
-            log.error("SHA-256 不可用: {}", e.getMessage());
-            return "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-        }
+    
+    /**
+     * 清理过期的指纹缓存
+     * 可以定期调用此方法清理长时间未访问的指纹
+     */
+    public void cleanupExpiredFingerprints() {
+        LocalDateTime expireTime = LocalDateTime.now().minusHours(24); // 24小时未访问则清理
+        
+        fingerprintCache.entrySet().removeIf(entry -> {
+            UserFingerprint fingerprint = entry.getValue();
+            return fingerprint.getLastVisitTime().isBefore(expireTime);
+        });
+        
+        log.info("清理过期指纹缓存完成，当前缓存大小: {}", fingerprintCache.size());
     }
 }

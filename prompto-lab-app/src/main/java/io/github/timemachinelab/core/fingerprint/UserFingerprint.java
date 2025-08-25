@@ -1,37 +1,34 @@
 package io.github.timemachinelab.core.fingerprint;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+
+import java.time.LocalDateTime;
 
 /**
- * 用户指纹实体
- * 包含用户指纹及相关访问信息
+ * 用户指纹信息
+ * 用于标识和跟踪用户会话
  * 
- * @author suifeng
- * @date 2025/1/27
+ * @author welsir
+ * @date 2025/1/20
  */
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class UserFingerprint {
     
     /**
-     * 用户指纹（16位哈希值）
+     * 用户指纹ID
      */
     private String fingerprint;
     
     /**
-     * 首次访问时间戳
+     * 用户显示名称
      */
-    private Long firstSeen;
-    
-    /**
-     * 最后访问时间戳
-     */
-    private Long lastSeen;
+    private String displayName;
     
     /**
      * 访问次数
@@ -39,35 +36,29 @@ public class UserFingerprint {
     private Integer visitCount;
     
     /**
-     * 最后访问的IP地址
+     * 首次访问时间
      */
-    private String lastIp;
+    private LocalDateTime firstVisitTime;
     
     /**
-     * 用户代理字符串
+     * 最后访问时间
+     */
+    private LocalDateTime lastVisitTime;
+    
+    /**
+     * 用户IP地址
+     */
+    private String ipAddress;
+    
+    /**
+     * 用户代理信息
      */
     private String userAgent;
     
     /**
-     * 用户昵称（可选，用户可以设置）
+     * 是否为新用户
      */
-    private String nickname;
-    
-    /**
-     * 用户偏好设置（JSON字符串）
-     */
-    private String preferences;
-    
-    /**
-     * 获取用户显示名称
-     * 优先使用昵称，否则使用指纹的前8位
-     * 
-     * @return 用户显示名称
-     */
-    public String getDisplayName() {
-        if (nickname != null && !nickname.trim().isEmpty()) {
-            return nickname;
-        }
-        return "用户_" + (fingerprint != null ? fingerprint.substring(0, 8) : "unknown");
+    public boolean isNewUser() {
+        return visitCount != null && visitCount == 1;
     }
 }

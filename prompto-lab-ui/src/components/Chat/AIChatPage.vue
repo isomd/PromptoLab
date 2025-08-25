@@ -11,24 +11,46 @@
     </div>
 
     <!-- 左侧栏 -->
-    <div class="left-sidebar">
+    <div class="left-sidebar" :class="{ collapsed: !sidebarExpanded }">
       <div class="sidebar-content">
-        <div class="sidebar-header">
-          <div class="header-icon">
-            <div class="icon-wrapper">
-              <span class="icon">◈</span>
-            </div>
+        <!-- 可展开/收缩的头部按钮 -->
+        <div class="sidebar-toggle" @click="toggleSidebar">
+          <div class="toggle-icon">
+            <span class="icon">{{ sidebarExpanded ? '◀' : '▶' }}</span>
           </div>
-          <div class="header-text">
-            <h3>AI助手</h3>
-            <p>智能对话引导</p>
+          <div class="toggle-text" v-if="sidebarExpanded">
+            <h3>会话列表</h3>
+            <p>点击收起</p>
           </div>
         </div>
-        <div class="sidebar-placeholder">
-          <div class="placeholder-content">
-            <div class="placeholder-icon">⚡</div>
-            <p>功能面板</p>
-            <span>即将推出</span>
+        <!-- 会话列表 -->
+        <div class="session-list" v-if="sidebarExpanded">
+          <div class="session-list-header">
+            <h4>最近对话</h4>
+            <button class="new-chat-btn" @click="startNewChat">
+              <span class="plus-icon">+</span>
+              新对话
+            </button>
+          </div>
+          <div class="session-items">
+            <div 
+              v-for="sessionItem in mockSessionList" 
+              :key="sessionItem.id"
+              class="session-item"
+              :class="{ active: sessionItem.id === currentSessionId }"
+              @click="switchToSession(sessionItem.id)"
+            >
+              <div class="session-content">
+                <div class="session-title">{{ sessionItem.title }}</div>
+                <div class="session-preview">{{ sessionItem.lastMessage }}</div>
+                <div class="session-time">{{ formatTime(sessionItem.updatedAt) }}</div>
+              </div>
+              <div class="session-actions">
+                <button class="delete-btn" @click.stop="deleteSession(sessionItem.id)">
+                  <span>×</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -108,6 +130,60 @@ const eventSource = ref<EventSource | null>(null)
 const isConnected = ref(false)
 const isInitializing = ref(false)
 
+// 指纹和会话列表
+const FINGERPRINT_KEY = 'prompto_lab_fingerprint'
+const fingerprint = ref<string>(localStorage.getItem(FINGERPRINT_KEY) || '')
+const sessionList = ref<any[]>([])
+const currentSessionId = ref<string>('')
+
+// 侧边栏展开状态
+const sidebarExpanded = ref<boolean>(true)
+
+// Mock会话数据
+const mockSessionList = ref([
+  {
+    id: 'session-1',
+    title: '如何学习Vue 3',
+    lastMessage: '可以从官方文档开始，然后通过实际项目练习...',
+    updatedAt: new Date(Date.now() - 1000 * 60 * 30), // 30分钟前
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2) // 2小时前
+  },
+  {
+    id: 'session-2', 
+    title: 'TypeScript最佳实践',
+    lastMessage: 'TypeScript的类型系统可以帮助我们在编译时发现错误...',
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60), // 1小时前
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3) // 3小时前
+  },
+  {
+    id: 'session-3',
+    title: 'Vite配置优化',
+    lastMessage: '可以通过配置别名、代码分割等方式来优化构建性能...',
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2小时前
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4) // 4小时前
+  },
+  {
+    id: 'session-4',
+    title: 'CSS Grid布局详解',
+    lastMessage: 'Grid布局提供了强大的二维布局能力，适合复杂的页面结构...',
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6小时前
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8) // 8小时前
+  },
+  {
+    id: 'session-5',
+    title: 'API设计规范',
+    lastMessage: 'RESTful API设计应该遵循统一的命名规范和HTTP状态码...',
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1天前
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 25) // 25小时前
+  }
+])
+
+// 保存指纹到localStorage
+const saveFingerprint = (fp: string) => {
+  fingerprint.value = fp
+  localStorage.setItem(FINGERPRINT_KEY, fp)
+}
+
 // SSE连接管理
 const connectionTimeout = ref<NodeJS.Timeout | null>(null)
 const activityTimeout = ref<NodeJS.Timeout | null>(null)
@@ -118,6 +194,11 @@ const lastActivityTime = ref<number>(Date.now())
 const conversationTree = ref<Map<string, ConversationNode>>(new Map())
 const currentNodeId = ref<string>('')
 const isLoading = ref(false)
+
+// 设置loading状态的辅助函数
+const setLoading = (loading: boolean) => {
+  isLoading.value = loading
+}
 
 // 问题状态管理
 const currentQuestion = ref<any>(null)
@@ -147,7 +228,7 @@ const ensureUniqueConnection = () => {
 
 // 更新活跃时间
 const updateActivity = () => {
-  console.log(conversationTree.value)
+  
   lastActivityTime.value = Date.now()
 
   // 重置活跃超时定时器
@@ -156,7 +237,7 @@ const updateActivity = () => {
   }
 
   activityTimeout.value = setTimeout(() => {
-    console.log('SSE连接因不活跃超时，自动关闭')
+    
     closeConnection()
     toast.info({
       title: '连接已关闭',
@@ -199,8 +280,6 @@ const initializeSession = async () => {
 
     // 建立SSE连接（不传sessionId，让后端创建新会话）
     eventSource.value = connectUserInteractionSSE(
-      null, // sessionId为null，后端会创建新会话
-      userId,
       handleSSEMessage,
       handleSSEError
     )
@@ -225,33 +304,85 @@ const initializeSession = async () => {
 
 // 处理SSE消息
 const handleSSEMessage = (response: any) => {
-  console.log('收到SSE消息:', response)
+  
 
   // 更新活跃时间
   updateActivity()
 
+  // 检查是否是新的统一消息格式
+  let actualData = response
+  if (response.success !== undefined && response.code !== undefined && response.data !== undefined) {
+    
+    
+    // 如果是错误消息
+    if (!response.success) {
+      console.error('收到SSE错误消息:', response)
+      setLoading(false)
+      toast.error({
+        title: 'AI服务错误',
+        message: response.data || 'AI服务调用失败，请重试',
+        duration: 5000
+      })
+      return
+    }
+    
+    // 如果是成功消息，提取data字段作为实际数据
+    try {
+      actualData = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
+      
+    } catch (e) {
+      console.error('解析SSE数据失败:', e, '原始数据:', response.data)
+      setLoading(false)
+      return
+    }
+  }
+
   // 处理连接建立消息
-  if (handleConnectionMessage(response)) {
+  if (handleConnectionMessage(actualData)) {
     return
   }
 
   // 处理生成提示词消息
-  if (handleGenPromptMessage(response)) {
+  if (handleGenPromptMessage(actualData)) {
     return
   }
 
   // 处理新问题格式消息
-  if (handleQuestionMessage(response)) {
+  
+  if (handleQuestionMessage(actualData)) {
+    
     return
   }
+  
 
   // 处理其他类型的消息
-  handleOtherMessages(response)
+  handleOtherMessages(actualData)
+  
+  // 兜底逻辑：确保isLoading状态被重置
+  // 如果消息处理完成但isLoading仍为true，则重置为false
+  if (isLoading.value) {
+    
+    setLoading(false)
+  }
 }
 
 // 处理连接建立消息
 const handleConnectionMessage = (response: any): boolean => {
-  if (response.type === 'connected' || response.sessionId) {
+  if (response.type === 'connected' || response.fingerprint || response.fingerprintId) {
+    console.log('收到SSE连接建立消息:', response)
+    
+    // 处理SSE连接建立时的指纹和sessionList
+    const fingerprint = response.fingerprintId || response.fingerprint
+    if (fingerprint) {
+      saveFingerprint(fingerprint)
+      console.log('已保存指纹:', fingerprint)
+    }
+    
+    if (response.sessionList) {
+      sessionList.value = response.sessionList
+      console.log('已更新会话列表:', response.sessionList)
+    }
+    
     // 这是连接建立时的会话信息
     if (response.sessionId) {
       session.value = {
@@ -260,7 +391,7 @@ const handleConnectionMessage = (response: any): boolean => {
       }
       isConnected.value = true
 
-      // console.log('会话已建立:', session.value)
+      console.log('会话已建立:', session.value)
 
       // 后端总是会返回nodeId，新会话返回'1'，已存在会话返回实际的nodeId
       if (response.nodeId) {
@@ -297,6 +428,8 @@ const handleConnectionMessage = (response: any): boolean => {
         message: response.isNewSession ? '已创建新会话' : '已连接到现有会话',
         duration: 2000
       })
+    } else {
+      console.warn('SSE连接建立消息中缺少sessionId:', response)
     }
     return true
   }
@@ -306,15 +439,10 @@ const handleConnectionMessage = (response: any): boolean => {
 // 处理生成提示词消息
 const handleGenPromptMessage = (response: any): boolean => {
   if (response.genPrompt) {
-    console.log('收到genPrompt数据:', response.genPrompt)
-    console.log('questionRendererRef.value:', questionRendererRef.value)
-    
     try {
       // 通过ref调用子组件的setPromptResult方法显示提示词结果
       if (questionRendererRef.value && questionRendererRef.value.setPromptResult) {
-        console.log('调用子组件setPromptResult方法')
         questionRendererRef.value.setPromptResult(response.genPrompt)
-        console.log('setPromptResult调用完成')
         
         toast.success({
           title: '提示词生成成功',
@@ -323,9 +451,6 @@ const handleGenPromptMessage = (response: any): boolean => {
         })
       } else {
         console.warn('QuestionRenderer组件引用不可用，无法显示提示词结果')
-        console.log('questionRendererRef.value存在:', !!questionRendererRef.value)
-        console.log('setPromptResult方法存在:', questionRendererRef.value && !!questionRendererRef.value.setPromptResult)
-        
         toast.error({
           title: '显示失败',
           message: '无法显示提示词结果，请重试',
@@ -347,9 +472,26 @@ const handleGenPromptMessage = (response: any): boolean => {
 
 // 处理新问题格式消息
 const handleQuestionMessage = (response: any): boolean => {
+ 
   if (response.question && response.question.type) {
+    
     // 这是新的问题格式
     currentQuestion.value = response.question
+
+    // 从AI响应消息中提取并设置sessionId
+    if (response.sessionId && !session.value) {
+      console.log('从AI响应消息中设置sessionId:', response.sessionId)
+      session.value = {
+        sessionId: response.sessionId,
+        userId: fingerprint.value || 'unknown'
+      }
+      
+      toast.success({
+        title: '会话已建立',
+        message: '已从AI响应中获取会话信息',
+        duration: 2000
+      })
+    }
 
     // 更新当前节点ID为新创建的问题节点ID
     if (response.currentNodeId) {
@@ -394,7 +536,7 @@ const handleQuestionMessage = (response: any): boolean => {
       // console.log('父节点ID:', response.parentNodeId)
     }
 
-    isLoading.value = false
+    setLoading(false)
     // console.log('收到新格式问题:', response.question, '当前节点ID:', response.currentNodeId, '父节点ID:', response.parentNodeId)
     return true
   }
@@ -403,6 +545,33 @@ const handleQuestionMessage = (response: any): boolean => {
 
 // 处理其他类型的消息
 const handleOtherMessages = (response: any) => {
+  // 从AI响应消息中提取并设置sessionId（如果还没有设置的话）
+  if (response.sessionId && !session.value) {
+    console.log('从其他消息类型中设置sessionId:', response.sessionId)
+    session.value = {
+      sessionId: response.sessionId,
+      userId: fingerprint.value || 'unknown'
+    }
+    
+    toast.success({
+      title: '会话已建立',
+      message: '已从AI响应中获取会话信息',
+      duration: 2000
+    })
+  }
+  
+  // 首先检查是否是错误消息
+  if (response.error) {
+    console.error('收到SSE错误消息:', response)
+    setLoading(false)
+    toast.error({
+      title: 'AI服务错误',
+      message: response.message || 'AI服务调用失败，请重试',
+      duration: 5000
+    })
+    return
+  }
+  
   const messageResponse = response as MessageResponse
   switch (messageResponse.type) {
     case 'AI_QUESTION':
@@ -411,7 +580,7 @@ const handleOtherMessages = (response: any) => {
         const questionData = JSON.parse(messageResponse.content)
         if (questionData.type && ['input', 'single', 'multi', 'form'].includes(questionData.type)) {
           currentQuestion.value = questionData
-          isLoading.value = false
+          setLoading(false)
           break
         }
       } catch (e) {
@@ -428,6 +597,8 @@ const handleOtherMessages = (response: any) => {
       break
     case 'USER_ANSWER':
       // 用户消息确认，通常不需要特殊处理
+      // 但需要重置loading状态
+      setLoading(false)
       break
     case 'SYSTEM_INFO':
       toast.info({
@@ -435,16 +606,22 @@ const handleOtherMessages = (response: any) => {
         message: messageResponse.content,
         duration: 3000
       })
+      setLoading(false)
       break
     case undefined:
       // 处理没有type字段的消息
       // console.log('收到没有type字段的消息，尝试作为普通消息处理:', response)
       if (response.content) {
         addAIMessage(response.nodeId || `ai_${Date.now()}`, response.content)
+      } else {
+        // 如果没有内容，也要重置loading状态
+        setLoading(false)
       }
       break
     default:
       console.warn('未知的消息类型:', messageResponse.type, messageResponse)
+      // 未知消息类型也要重置loading状态
+      setLoading(false)
       break
   }
 }
@@ -478,8 +655,6 @@ const handleSSEError = (error: Event) => {
         ensureUniqueConnection() // 确保连接唯一性
 
         eventSource.value = connectUserInteractionSSE(
-          session.value?.sessionId || null,
-          session.value?.userId || 'demo-user-' + Date.now(),
           handleSSEMessage,
           handleSSEError
         )
@@ -510,7 +685,7 @@ const addAIMessage = (nodeId: string, content: string) => {
 
   conversationTree.value.set(nodeId, aiNode)
   currentNodeId.value = nodeId
-  isLoading.value = false
+  setLoading(false)
 }
 
 const addAISelectionMessage = (nodeId: string, content: string, options: string[]) => {
@@ -610,6 +785,63 @@ const updateContainerWidth = () => {
   containerWidth.value = window.innerWidth
 }
 
+// 侧边栏切换方法
+const toggleSidebar = () => {
+  sidebarExpanded.value = !sidebarExpanded.value
+}
+
+// 会话操作方法
+const startNewChat = () => {
+  currentSessionId.value = ''
+  // 清空当前对话
+  conversationTree.value.clear()
+  currentNodeId.value = ''
+  currentQuestion.value = null
+  // 重新初始化会话
+  initializeSession()
+  toast.success('已开始新对话')
+}
+
+const switchToSession = (sessionId: string) => {
+  if (currentSessionId.value === sessionId) return
+  
+  currentSessionId.value = sessionId
+  // 这里后续会调用API加载会话历史
+  toast.info(`切换到会话: ${sessionId}`)
+}
+
+const deleteSession = (sessionId: string) => {
+  const index = mockSessionList.value.findIndex(s => s.id === sessionId)
+  if (index > -1) {
+    mockSessionList.value.splice(index, 1)
+    toast.success('会话已删除')
+    
+    // 如果删除的是当前会话，切换到新对话
+    if (currentSessionId.value === sessionId) {
+      startNewChat()
+    }
+  }
+}
+
+const formatTime = (date: Date) => {
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  
+  const minutes = Math.floor(diff / (1000 * 60))
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  
+  if (minutes < 60) {
+    return `${minutes}分钟前`
+  } else if (hours < 24) {
+    return `${hours}小时前`
+  } else if (days < 7) {
+    return `${days}天前`
+  } else {
+    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+  }
+}
+
 // 生命周期
 onMounted(() => {
   currentNodeId.value = '1'
@@ -673,24 +905,24 @@ const handleSendMessage = async (content: string) => {
   conversationTree.value.set(userNodeId, userNode)
   currentNodeId.value = userNodeId
 
-  isLoading.value = true
+  setLoading(true)
 
   try {
-    // 发送消息到后端，必须包含sessionId
+    // 发送消息到后端，sessionId可选，不带时默认新会话
     const messageRequest: MessageRequest = {
-      sessionId: session.value.sessionId, // 必需的sessionId
+      sessionId: session.value?.sessionId || '', // sessionId可选，空字符串表示新会话
       content,
       type: 'USER_TEXT'
     }
 
-    await sendUserMessage(messageRequest, session.value.userId, nodeIdToSend)
+    await sendUserMessage(messageRequest)
 
     // 消息发送成功，等待SSE返回AI回复
     // console.log('消息已发送，等待AI回复...')
 
   } catch (error: any) {
     console.error('发送消息失败:', error)
-    isLoading.value = false
+    setLoading(false)
 
     // 检查是否是会话相关错误
     if (error.message && (error.message.includes('sessionId') || error.message.includes('会话'))) {
@@ -723,10 +955,72 @@ const handleSendMessage = async (content: string) => {
 
 // 处理重试问题
 const handleRetryQuestion = async (reason: string = '用户要求重新生成问题') => {
-  if (!session.value || !currentQuestion.value) {
+  console.log('开始处理重试请求，当前session状态:', {
+    session: session.value,
+    isConnected: isConnected.value,
+    currentNodeId: currentNodeId.value,
+    fingerprint: fingerprint.value
+  })
+  
+  // 验证必需参数：sessionId和指纹
+  if (!session.value?.sessionId) {
+    console.error('重试失败：缺少sessionId', {
+      session: session.value,
+      isConnected: isConnected.value,
+      eventSource: !!eventSource.value
+    })
+    
+    // 尝试重新建立连接
+    toast.error({
+      title: '连接异常',
+      message: '会话连接已断开，正在尝试重新连接...',
+      duration: 3000
+    })
+    
+    try {
+      // 重新初始化会话
+      await initializeSession()
+      
+      // 等待一段时间让连接建立
+      setTimeout(async () => {
+        if (session.value?.sessionId) {
+          toast.success({
+            title: '连接已恢复',
+            message: '请重新尝试重试操作',
+            duration: 2000
+          })
+        } else {
+          toast.error({
+            title: '连接失败',
+            message: '无法重新建立连接，请刷新页面',
+            duration: 5000
+          })
+        }
+      }, 2000)
+    } catch (error) {
+      console.error('重新连接失败:', error)
+      toast.error({
+        title: '重试失败',
+        message: '无法重新建立连接，请刷新页面重试',
+        duration: 5000
+      })
+    }
+    return
+  }
+  
+  if (!fingerprint.value) {
     toast.error({
       title: '重试失败',
-      message: '会话未建立或没有当前问题',
+      message: '缺少指纹信息，无法重试',
+      duration: 3000
+    })
+    return
+  }
+  
+  if (!currentQuestion.value) {
+    toast.error({
+      title: '重试失败',
+      message: '没有当前问题',
       duration: 3000
     })
     return
@@ -735,7 +1029,7 @@ const handleRetryQuestion = async (reason: string = '用户要求重新生成问
   // 更新活跃时间
   updateActivity()
 
-  isLoading.value = true
+  setLoading(true)
 
   try {
     // 构建重试请求
@@ -758,7 +1052,7 @@ const handleRetryQuestion = async (reason: string = '用户要求重新生成问
 
   } catch (error: any) {
     console.error('重试失败:', error)
-    isLoading.value = false
+    setLoading(false)
 
     // 检查是否是会话相关错误
     if (error.message && (error.message.includes('sessionId') || error.message.includes('nodeId') || error.message.includes('会话') || error.message.includes('节点'))) {
@@ -794,19 +1088,17 @@ const handleSubmitAnswer = async (answerData: any) => {
   // 更新活跃时间
   updateActivity()
 
-  isLoading.value = true
+  setLoading(true)
 
   try {
     // 保存当前问题节点ID，用于后端验证
     const questionNodeId = currentNodeId.value
 
-    // 构建统一答案请求，必须包含sessionId和正确的nodeId
+    // 构建统一答案请求，必须包含sessionId
     const request: UnifiedAnswerRequest = {
       sessionId: session.value.sessionId, // 必需的sessionId
-      nodeId: questionNodeId, // 问题节点ID，用于后端验证
       questionType: currentQuestion.value.type,
-      answer: answerData,
-      userId: session.value.userId // 必需的userId
+      answer: answerData
     }
 
     // 调用新的processAnswer接口
@@ -883,7 +1175,7 @@ const handleSubmitAnswer = async (answerData: any) => {
 
   } catch (error: any) {
     console.error('提交答案失败:', error)
-    isLoading.value = false
+    setLoading(false)
 
     // 检查是否是会话或节点相关错误
     if (error.message && (error.message.includes('sessionId') || error.message.includes('nodeId') || error.message.includes('会话') || error.message.includes('节点'))) {
@@ -920,20 +1212,20 @@ const handleGeneratePrompt = async (answerData: any) => {
   updateActivity()
 
   try {
-    // 调用生成提示词API，传入sessionId和userId
-    const promptResult = await generatePrompt({
-      sessionId: session.value.sessionId,
+    // 调用生成提示词API，触发后端生成提示词
+    // 注意：这里只是触发生成，真正的提示词内容会通过SSE消息返回
+    await generatePrompt({
+      sessionId: session.value?.sessionId || '', // sessionId可选，空字符串表示新会话
+      nodeId: currentNodeId.value,
       answer: answerData
     })
 
-    // 通过ref获取QuestionRenderer组件实例并设置提示词结果
-     if (questionRendererRef.value && questionRendererRef.value.setPromptResult) {
-       questionRendererRef.value.setPromptResult(promptResult)
-     }
+    // 不在这里设置提示词结果，等待SSE消息中的handleGenPromptMessage处理
+    // 真正的提示词内容会通过SSE消息在handleGenPromptMessage中处理
 
-    toast.success({
-      title: '生成成功',
-      message: '提示词已生成完成',
+    toast.info({
+      title: '生成中',
+      message: '正在生成提示词，请稍候...',
       duration: 2000
     })
 
@@ -1194,10 +1486,9 @@ const handleBranchDeleted = (nodeId: string) => {
   }
 }
 
-/* 左侧栏 - 恢复原始宽度 */
+/* 左侧栏 - 可收缩 */
 .left-sidebar {
   width: 250px;
-  /* 恢复到原始的250px宽度 */
   background: rgba(8, 8, 8, 0.9);
   backdrop-filter: blur(24px) saturate(180%);
   border-right: 1px solid rgba(212, 175, 55, 0.15);
@@ -1207,6 +1498,157 @@ const handleBranchDeleted = (nodeId: string) => {
   box-shadow:
     inset -1px 0 0 rgba(212, 175, 55, 0.1),
     0 0 32px rgba(0, 0, 0, 0.3);
+  transition: width 0.3s ease;
+}
+
+.left-sidebar.collapsed {
+  width: 60px;
+}
+
+/* 会话列表样式 */
+.session-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.session-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.session-list-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #d4af37;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.new-chat-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.1), rgba(244, 208, 63, 0.05));
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 8px;
+  color: #d4af37;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.new-chat-btn:hover {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(244, 208, 63, 0.1));
+  border-color: rgba(212, 175, 55, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+}
+
+.plus-icon {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.session-items {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: rgba(15, 15, 15, 0.6);
+  border: 1px solid rgba(212, 175, 55, 0.1);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.session-item:hover {
+  background: rgba(15, 15, 15, 0.8);
+  border-color: rgba(212, 175, 55, 0.3);
+  transform: translateX(2px);
+}
+
+.session-item.active {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(244, 208, 63, 0.08));
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.2);
+}
+
+.session-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8e8e8;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-preview {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.3;
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.session-time {
+  font-size: 10px;
+  color: #666;
+  font-weight: 500;
+}
+
+.session-actions {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.session-item:hover .session-actions {
+  opacity: 1;
+}
+
+.delete-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  transition: all 0.3s ease;
+}
+
+.delete-btn:hover {
+  background: rgba(255, 59, 48, 0.2);
+  transform: scale(1.1);
 }
 
 .sidebar-content {
@@ -1217,6 +1659,81 @@ const handleBranchDeleted = (nodeId: string) => {
   flex-direction: column;
   gap: 24px;
   /* 恢复原始间距 */
+}
+
+/* 切换按钮样式 */
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.1), rgba(244, 208, 63, 0.05));
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+.sidebar-toggle:hover {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(244, 208, 63, 0.1));
+  border-color: rgba(212, 175, 55, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.2);
+}
+
+.toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(212, 175, 55, 0.2);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.toggle-icon .icon {
+  font-size: 16px;
+  color: #d4af37;
+  font-weight: 700;
+  transition: transform 0.3s ease;
+}
+
+.toggle-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.toggle-text h3 {
+  margin: 0 0 2px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e8e8e8;
+}
+
+.toggle-text p {
+  margin: 0;
+  font-size: 11px;
+  color: #888;
+}
+
+/* 收缩状态下的样式调整 */
+.left-sidebar.collapsed .sidebar-content {
+  padding: 24px 8px;
+  align-items: center;
+}
+
+.left-sidebar.collapsed .sidebar-toggle {
+  width: 44px;
+  height: 44px;
+  padding: 6px;
+  justify-content: center;
+}
+
+.left-sidebar.collapsed .toggle-icon {
+  width: 28px;
+  height: 28px;
 }
 
 .sidebar-header {

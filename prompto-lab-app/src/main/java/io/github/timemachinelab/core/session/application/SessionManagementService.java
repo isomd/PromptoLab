@@ -134,7 +134,7 @@ public class SessionManagementService {
         
         // 设置QaTree到会话中
         session.setQaTree(tree);
-
+        session.setCurrentNode(tree.getRoot().getId());
         // 建立映射关系 - 添加到用户的会话列表中
         userSessionMap.computeIfAbsent(userId, k -> new ArrayList<>()).add(session.getSessionId());
         sessions.put(session.getSessionId(), session);
