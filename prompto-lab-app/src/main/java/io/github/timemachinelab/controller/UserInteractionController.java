@@ -213,21 +213,16 @@ public class UserInteractionController {
                     request.getNodeId(),
                     request.getQuestionType());
 
-            // 1. 获取和验证用户指纹
-            String fingerprint = request.getUserId(); // 假设前端传递的userId实际上是指纹
-            if (fingerprint == null || fingerprint.trim().isEmpty()) {
-                log.warn("缺少必需的用户指纹参数");
-                return ResponseEntity.badRequest().body("用户指纹参数是必需的");
-            }
-
-            // 2. 验证指纹是否存在
-            UserFingerprint userFingerprint = fingerprintService.getUserFingerprintByFingerprint(fingerprint);
-            if (userFingerprint == null) {
-                log.warn("无效的用户指纹: {}", fingerprint);
-                // 尝试重新生成指纹
-                userFingerprint = fingerprintService.getOrCreateUserFingerprint(httpRequest);
-                fingerprint = userFingerprint.getFingerprint();
-                log.info("为无效指纹重新生成: {}", fingerprint);
+            // 1. 从请求头获取和验证用户指纹（与SSE连接保持一致）
+            UserFingerprint userFingerprint = fingerprintService.getOrCreateUserFingerprint(httpRequest);
+            String fingerprint = userFingerprint.getFingerprint();
+            
+            log.info("用户指纹: {}, 访问次数: {}", fingerprint, userFingerprint.getVisitCount());
+            
+            // 2. 验证请求体中的userId是否与指纹匹配（可选验证）
+            String requestUserId = request.getUserId();
+            if (requestUserId != null && !requestUserId.equals(fingerprint)) {
+                log.warn("请求体中的userId({})与请求头指纹({})不匹配，以请求头指纹为准", requestUserId, fingerprint);
             }
 
             // 4. 根据sessionId是否为空判断新建还是继续会话
@@ -282,7 +277,7 @@ public class UserInteractionController {
 
             // 6. 处理答案并转换为消息
             String processedMessage = messageProcessingService.preprocessMessage(
-                    null, // 没有额外的原始消息
+                    null,
                     request,
                     session
             );
@@ -301,7 +296,7 @@ public class UserInteractionController {
     }
 
     @PostMapping("/gen-prompt")
-    public ResponseEntity<String>  genPrompt(@RequestBody GenPromptRequest request) {
+    public ResponseEntity<String> genPrompt(@RequestBody GenPromptRequest request) {
         GenPromptOperation.GpResponse gpResponse = new GenPromptOperation.GpResponse();
         gpResponse.setGenPrompt(AllPrompt.GEN_PROMPT_AGENT_PROMPT);
         sseNotificationService.sendWelcomeMessage(request.getSessionId(), JSON.toJSONString(gpResponse));

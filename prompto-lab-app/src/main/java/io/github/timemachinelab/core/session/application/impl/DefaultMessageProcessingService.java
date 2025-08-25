@@ -76,10 +76,6 @@ public class DefaultMessageProcessingService implements MessageProcessingService
             }
             
             String nodeId = request.getNodeId();
-            // 如果nodeId为'1'（根节点），使用根节点ID
-            if ("1".equals(nodeId) && qaTree.getRoot() != null) {
-                nodeId = qaTree.getRoot().getId();
-            }
             
             // 根据问题类型准备答案数据
             Object answerData = prepareAnswerData(request);
@@ -118,6 +114,9 @@ public class DefaultMessageProcessingService implements MessageProcessingService
     public String preprocessMessage(String originalMessage, UnifiedAnswerRequest answerRequest,ConversationSession conversationSession) {
         try {
 
+            updateQaTreeWithAnswer(conversationSession, answerRequest);
+
+            // 构建输入JSON
             JSONObject object = new JSONObject();
             object.put("prompt",AllPrompt.GLOBAL_PROMPT);
             object.put("tree", QaTreeSerializeUtil.serialize(conversationSession.getQaTree()));

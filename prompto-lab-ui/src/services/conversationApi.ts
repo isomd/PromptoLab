@@ -211,17 +211,11 @@ export const processAnswer = async (request: UnifiedAnswerRequest): Promise<void
 
 /**
  * 建立用户交互SSE连接
- * 对接后端的用户交互SSE接口
+ * 对接后端的用户交互SSE接口（基于用户指纹）
  */
-export const connectUserInteractionSSE = (sessionId: string | null, userId: string, onMessage: (response: any) => void, onError?: (error: Event) => void): EventSource => {
-  // 构建查询参数
-  const params = new URLSearchParams()
-  if (sessionId) {
-    params.append('sessionId', sessionId)
-  }
-  params.append('userId', userId)
-  
-  const url = `${USER_INTERACTION_BASE}/sse?${params.toString()}`
+export const connectUserInteractionSSE = (onMessage: (response: any) => void, onError?: (error: Event) => void): EventSource => {
+  // 后端SSE接口不需要参数，会自动通过HttpServletRequest生成或获取用户指纹
+  const url = `${USER_INTERACTION_BASE}/sse`
   const eventSource = new EventSource(url)
 
   // 监听连接建立事件

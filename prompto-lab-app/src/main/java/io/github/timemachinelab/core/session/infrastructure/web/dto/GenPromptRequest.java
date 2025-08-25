@@ -13,12 +13,9 @@ import javax.validation.constraints.NotBlank;
 @AllArgsConstructor
 public class GenPromptRequest {
 
-
-    /**
-     * 会话ID
-     */
-    @NotBlank(message = "会话ID不能为空")
     private String sessionId;
+
+    private String nodeId;
 
 
     /**

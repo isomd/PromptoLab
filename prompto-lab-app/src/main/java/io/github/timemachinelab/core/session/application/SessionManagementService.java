@@ -93,6 +93,17 @@ public class SessionManagementService {
     }
     
     /**
+     * 获取用户的所有会话ID列表
+     * 
+     * @param userId 用户ID
+     * @return 会话ID列表
+     */
+    public List<String> getUserSessionIds(String userId) {
+        List<String> sessionIds = userSessionMap.get(userId);
+        return sessionIds != null ? new ArrayList<>(sessionIds) : new ArrayList<>();
+    }
+    
+    /**
      * 获取用户最新的会话（最后创建的会话）
      * 
      * @param userId 用户ID

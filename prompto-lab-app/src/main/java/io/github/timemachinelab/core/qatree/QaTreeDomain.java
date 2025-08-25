@@ -123,6 +123,16 @@ public class QaTreeDomain {
     }
     
     /**
+     * 验证节点是否存在（别名方法）
+     * @param tree QA树
+     * @param nodeId 节点ID
+     * @return 节点是否存在
+     */
+    public boolean containsNode(QaTree tree, String nodeId) {
+        return nodeExists(tree, nodeId);
+    }
+    
+    /**
      * 移除指定节点及其所有子节点
      * @param tree QA树
      * @param nodeId 要移除的节点ID
