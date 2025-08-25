@@ -121,7 +121,7 @@
         </dependency>
 
         <dependency>
-            <groupId>com.suifeng</groupId>
+            <groupId>io.github.twj666</groupId>
             <artifactId>sf-chain</artifactId>
             <version>1.0.0</version>
         </dependency>
