@@ -97,7 +97,7 @@ public class SessionManagementService {
     
     /**
      * 获取用户的所有会话ID列表
-     * 
+     *
      * @param userId 用户ID
      * @return 会话ID列表
      */
@@ -105,7 +105,7 @@ public class SessionManagementService {
         List<String> sessionIds = userSessionMap.get(userId);
         return sessionIds != null ? new ArrayList<>(sessionIds) : new ArrayList<>();
     }
-    
+
     /**
      * 获取用户最新的会话（最后创建的会话）
      * 
@@ -320,7 +320,7 @@ public class SessionManagementService {
 
     /**
      * 获取会话详细信息
-     * 
+     *
      * @param sessionId 会话ID
      * @return 会话详细信息，如果会话不存在则返回null
      */
@@ -329,7 +329,7 @@ public class SessionManagementService {
         if (session == null) {
             return null;
         }
-        
+
         // 获取最后节点的问题内容和创建时间
         String lastNodeQuestion = null;
         LocalDateTime lastNodeCreateTime = session.getCreateTime(); // 默认使用会话创建时间
@@ -342,13 +342,24 @@ public class SessionManagementService {
                 lastNodeCreateTime = currentNode.getCreateTime();
             }
         }
-        
+
         return new SessionDetailResponse(
             session.getSessionId(),
             lastNodeCreateTime,
             lastNodeQuestion,
             session.getUpdateTime()
         );
+    }
+
+    public Boolean setUserProfile(String sessionId, String userId, String userProfile) {
+        ConversationSession session = validateAndGetSession(userId, sessionId);
+        if (session == null) {
+            log.warn("会话不存在或无效, 用户ID: {} 会话ID: {}", userId, sessionId);
+            return false;
+        }
+
+        session.setUser(userProfile);
+        return true;
     }
 
     private QaTree createDefaultQaTree() {

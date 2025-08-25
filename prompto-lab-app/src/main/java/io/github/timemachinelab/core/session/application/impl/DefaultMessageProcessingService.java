@@ -2,14 +2,13 @@ package io.github.timemachinelab.core.session.application.impl;
 
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.gson.JsonObject;
-import dev.langchain4j.internal.Json;
+
 import io.github.timemachinelab.core.constant.AllPrompt;
-import io.github.timemachinelab.core.constant.RetryPrompt;
 import io.github.timemachinelab.core.qatree.QaTreeNode;
 import io.github.timemachinelab.core.session.application.ConversationService;
 import io.github.timemachinelab.core.qatree.QaTree;
 import io.github.timemachinelab.core.qatree.QaTreeDomain;
+import io.github.timemachinelab.core.qatree.QaTreeNode;
 import io.github.timemachinelab.core.session.application.MessageProcessingService;
 import io.github.timemachinelab.core.session.application.SessionManagementService;
 import io.github.timemachinelab.core.session.application.SseNotificationService;
@@ -94,6 +93,7 @@ public class DefaultMessageProcessingService implements MessageProcessingService
             updateQaTreeWithAnswer(conversationSession, answerRequest);
 
             JSONObject object = new JSONObject();
+            object.put("set-user-profile", conversationSession.getUser());
             object.put("prompt",AllPrompt.GLOBAL_PROMPT);
             object.put("tree", QaTreeSerializeUtil.serialize(conversationSession.getQaTree()));
             object.put("input", answerRequest.getAnswerString());
@@ -154,7 +154,7 @@ public class DefaultMessageProcessingService implements MessageProcessingService
             messageObject.put("prompt", AllPrompt.GLOBAL_PROMPT);
             messageObject.put("tree", QaTreeSerializeUtil.serialize(conversationSession.getQaTree()));
             messageObject.put("input", retryObject.toString());
-            
+
             log.info("处理重试消息 - sessionId: {}, nodeId: {}, 原因: {}", sessionId, nodeId, whyRetry);
             return messageObject.toString();
             
@@ -163,16 +163,16 @@ public class DefaultMessageProcessingService implements MessageProcessingService
             throw new RuntimeException("重试消息处理失败", e);
         }
     }
-    
+
     @Override
     public void processAndSendMessage(ConversationSession session, String processedMessage) {
         try {
             log.info("发送消息给AI服务 - sessionId: {}", session.getSessionId());
-            
+
             // 调用ConversationService处理消息
             conversationService.processUserMessage(
-                session.getUserId(), 
-                processedMessage, 
+                session.getUserId(),
+                processedMessage,
                 response -> {
                     log.info("AI服务响应成功 - sessionId: {}", session.getSessionId());
 
@@ -184,7 +184,7 @@ public class DefaultMessageProcessingService implements MessageProcessingService
                     try {
                         // 通过SSE发送AI响应给前端
                         String fingerprint = session.getUserId();
-                        
+
                         // 构建要发送的响应数据，只包含用户指定的字段
                         JSONObject responseData = new JSONObject();
                         responseData.put("parentNodeId", response.getParentId());
@@ -192,21 +192,21 @@ public class DefaultMessageProcessingService implements MessageProcessingService
                         responseData.put("sessionId", session.getSessionId());
                         responseData.put("updateTime", session.getUpdateTime());
                         responseData.put("question", response.getQuestion());
-                        
+
                         sseNotificationService
                                 .sendSuccessMessage(fingerprint,responseData.toJSONString());
                         // 这里需要注入SseNotificationService
                         log.info("通过SSE发送AI响应 - 指纹: {}, 响应: {}", fingerprint, responseData);
-                        
+
                     } catch (Exception sseError) {
                         log.error("SSE消息发送失败 - sessionId: {}, 错误: {}", session.getSessionId(), sseError.getMessage(), sseError);
                     }
                 }
             );
-            
+
         } catch (Exception e) {
             log.error("发送消息给AI服务失败 - sessionId: {}, 错误: {}", session.getSessionId(), e.getMessage(), e);
-            
+
             // 通过SSE发送错误消息给前端
             try {
                 String fingerprint = session.getUserId();
@@ -215,13 +215,13 @@ public class DefaultMessageProcessingService implements MessageProcessingService
                 errorData.put("message", "AI服务调用失败: " + e.getMessage());
                 errorData.put("sessionId", session.getSessionId());
                 errorData.put("currentNodeId", session.getCurrentNode());
-                
+
                 sseNotificationService.sendErrorMessage(fingerprint, errorData.toJSONString());
                 log.info("通过SSE发送错误消息 - 指纹: {}, 错误: {}", fingerprint, errorData);
             } catch (Exception sseError) {
                 log.error("SSE错误消息发送失败 - sessionId: {}, 错误: {}", session.getSessionId(), sseError.getMessage(), sseError);
             }
-            
+
         }
     }
 

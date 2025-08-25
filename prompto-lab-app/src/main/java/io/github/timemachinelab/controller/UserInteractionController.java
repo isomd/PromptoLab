@@ -9,7 +9,6 @@ import io.github.timemachinelab.core.session.application.SessionManagementServic
 import io.github.timemachinelab.core.session.application.SseNotificationService;
 import io.github.timemachinelab.core.session.application.SseValidationService;
 import io.github.timemachinelab.core.session.application.SessionException;
-import io.github.timemachinelab.core.session.application.SseValidationService;
 import io.github.timemachinelab.core.session.application.SessionProcessingService;
 import io.github.timemachinelab.core.session.application.RetryProcessingService;
 import io.github.timemachinelab.core.qatree.QaTreeDomain;
@@ -71,7 +70,6 @@ public class UserInteractionController {
     private RetryProcessingService retryProcessingService;
     @Resource
     private QaTreeDomain qaTreeDomain;
-
     /**
      * 建立SSE连接
      * 1. 生成指纹(如果不存在)，返回空的sessionList
@@ -406,5 +404,14 @@ public class UserInteractionController {
     @GetMapping("/sse-status")
     public ResponseEntity<Map<String, Object>> getSseStatus() {
         return ResponseEntity.ok(sseNotificationService.getSseStatus());
+    }
+
+    /*
+    * 设置用户画像
+    * */
+
+    @PostMapping("/set-user-profile")
+    public ResponseEntity<Boolean> setUserProfile(@RequestBody SetUserProfileRequest request) {
+        return ResponseEntity.ok(sessionManagementService.setUserProfile(request.getSessionId(), request.getUserId(), request.getUserProfile()));
     }
 }

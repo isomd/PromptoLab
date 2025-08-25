@@ -33,8 +33,8 @@
             </button>
           </div>
           <div class="session-items">
-            <div 
-              v-for="sessionItem in sessionList" 
+            <div
+              v-for="sessionItem in sessionList"
               :key="sessionItem.id"
               class="session-item"
               :class="{ active: sessionItem.id === currentSessionId }"
@@ -58,7 +58,8 @@
 
     <!-- 中间问答主页面 -->
     <div class="main-content" :style="{ width: mainContentWidth + 'px' }">
-      <QuestionRenderer ref="questionRendererRef" :current-question="currentQuestion" :is-loading="isLoading" @send-message="handleSendMessage"
+      <QuestionRenderer ref="questionRendererRef" :current-question="currentQuestion" :is-loading="isLoading"
+        :session-id="sessionId" :user-id="userId" @send-message="handleSendMessage"
         @submit-answer="handleSubmitAnswer" @retry-question="handleRetryQuestion" @generate-prompt="handleGeneratePrompt" />
     </div>
 
@@ -223,6 +224,10 @@ const setLoading = (loading: boolean) => {
 // 问题状态管理
 const currentQuestion = ref<any>(null)
 
+// 会话信息
+const sessionId = ref<string | null>(null)
+const userId = ref<string>('')
+
 // 子组件引用
 const questionRendererRef = ref<any>(null)
 
@@ -251,7 +256,7 @@ const ensureUniqueConnection = () => {
 
 // 更新活跃时间
 const updateActivity = () => {
-  
+
   lastActivityTime.value = Date.now()
 
   // 重置活跃超时定时器
@@ -260,7 +265,7 @@ const updateActivity = () => {
   }
 
   activityTimeout.value = setTimeout(() => {
-    
+
     closeConnection()
     toast.info({
       title: '连接已关闭',
@@ -327,7 +332,7 @@ const initializeSession = async () => {
 
 // 处理SSE消息
 const handleSSEMessage = (response: any) => {
-  
+
 
   // 更新活跃时间
   updateActivity()
@@ -335,8 +340,8 @@ const handleSSEMessage = (response: any) => {
   // 检查是否是新的统一消息格式
   let actualData = response
   if (response.success !== undefined && response.code !== undefined && response.data !== undefined) {
-    
-    
+
+
     // 如果是错误消息
     if (!response.success) {
       console.error('收到SSE错误消息:', response)
@@ -348,11 +353,11 @@ const handleSSEMessage = (response: any) => {
       })
       return
     }
-    
+
     // 如果是成功消息，提取data字段作为实际数据
     try {
       actualData = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
-      
+
     } catch (e) {
       console.error('解析SSE数据失败:', e, '原始数据:', response.data)
       setLoading(false)
@@ -371,20 +376,20 @@ const handleSSEMessage = (response: any) => {
   }
 
   // 处理新问题格式消息
-  
+
   if (handleQuestionMessage(actualData)) {
-    
+
     return
   }
-  
+
 
   // 处理其他类型的消息
   handleOtherMessages(actualData)
-  
+
   // 兜底逻辑：确保isLoading状态被重置
   // 如果消息处理完成但isLoading仍为true，则重置为false
   if (isLoading.value) {
-    
+
     setLoading(false)
   }
 }
@@ -393,14 +398,14 @@ const handleSSEMessage = (response: any) => {
 const handleConnectionMessage = (response: any): boolean => {
   if (response.type === 'connected' || response.fingerprint || response.fingerprintId) {
     console.log('收到SSE连接建立消息:', response)
-    
+
     // 处理SSE连接建立时的指纹和sessionList
     const fingerprint = response.fingerprintId || response.fingerprint
     if (fingerprint) {
       saveFingerprint(fingerprint)
       console.log('已保存指纹:', fingerprint)
     }
-    
+
     // 处理新的会话详细信息格式
     if (response.sessionList && Array.isArray(response.sessionList)) {
       // 将SessionDetailResponse对象转换为SessionItem对象
@@ -412,10 +417,10 @@ const handleConnectionMessage = (response: any): boolean => {
         createdAt: sessionDetail.lastNodeCreateTime || new Date().toISOString()
       }))
       console.log('已更新会话列表:', sessionList.value)
-      
+
       // 保存会话列表到localStorage
       saveSessionList(sessionList.value)
-      
+
       // 如果有会话列表且当前没有设置currentSessionId，则设置为第一个会话
       if (sessionList.value.length > 0 && !currentSessionId.value) {
         currentSessionId.value = sessionList.value[0].id
@@ -423,7 +428,7 @@ const handleConnectionMessage = (response: any): boolean => {
         saveCurrentSessionId(currentSessionId.value)
       }
     }
-    
+
     // 这是连接建立时的会话信息
     if (response.sessionId) {
       session.value = {
@@ -474,7 +479,7 @@ const handleConnectionMessage = (response: any): boolean => {
       // 但不设置具体的会话，允许后续操作创建新会话
       isConnected.value = true
       console.warn('SSE连接建立消息中缺少sessionId:', response)
-      
+
       toast.success({
         title: '连接已建立',
         message: '已连接到服务，可以开始对话',
@@ -493,7 +498,7 @@ const handleGenPromptMessage = (response: any): boolean => {
       // 通过ref调用子组件的setPromptResult方法显示提示词结果
       if (questionRendererRef.value && questionRendererRef.value.setPromptResult) {
         questionRendererRef.value.setPromptResult(response.genPrompt)
-        
+
         toast.success({
           title: '提示词生成成功',
           message: '已为您生成优化的提示词',
@@ -522,9 +527,9 @@ const handleGenPromptMessage = (response: any): boolean => {
 
 // 处理新问题格式消息
 const handleQuestionMessage = (response: any): boolean => {
- 
+
   if (response.question && response.question.type) {
-    
+
     // 这是新的问题格式
     currentQuestion.value = response.question
 
@@ -535,7 +540,7 @@ const handleQuestionMessage = (response: any): boolean => {
         sessionId: response.sessionId,
         userId: fingerprint.value || 'unknown'
       }
-      
+
       toast.success({
         title: '会话已建立',
         message: '已从AI响应中获取会话信息',
@@ -602,14 +607,14 @@ const handleOtherMessages = (response: any) => {
       sessionId: response.sessionId,
       userId: fingerprint.value || 'unknown'
     }
-    
+
     toast.success({
       title: '会话已建立',
       message: '已从AI响应中获取会话信息',
       duration: 2000
     })
   }
-  
+
   // 首先检查是否是错误消息
   if (response.error) {
     console.error('收到SSE错误消息:', response)
@@ -621,7 +626,7 @@ const handleOtherMessages = (response: any) => {
     })
     return
   }
-  
+
   const messageResponse = response as MessageResponse
   switch (messageResponse.type) {
     case 'AI_QUESTION':
@@ -860,7 +865,7 @@ const startNewChat = () => {
 
 const switchToSession = (sessionId: string) => {
   if (currentSessionId.value === sessionId) return
-  
+
   currentSessionId.value = sessionId
   // 保存当前会话ID到localStorage
   saveCurrentSessionId(sessionId)
@@ -873,7 +878,7 @@ const deleteSession = (sessionId: string) => {
   if (index > -1) {
     sessionList.value.splice(index, 1)
     toast.success('会话已删除')
-    
+
     // 如果删除的是当前会话，切换到新对话
     if (currentSessionId.value === sessionId) {
       startNewChat()
@@ -904,24 +909,24 @@ const formatTime = (date: Date | string) => {
   } else {
     dateObj = date;
   }
-  
+
   // 检查日期是否有效
   if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
     return '未知时间';
   }
-  
+
   const now = new Date();
   const diff = now.getTime() - dateObj.getTime();
-  
+
   // 检查差值是否有效
   if (isNaN(diff)) {
     return '未知时间';
   }
-  
+
   const minutes = Math.floor(diff / (1000 * 60));
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  
+
   if (minutes < 1) {
     return '刚刚';
   } else if (minutes < 60) {
@@ -947,21 +952,21 @@ onMounted(() => {
     isActive: true
   }
   conversationTree.value.set('1', rootNode)
-  
+
   // 尝试从localStorage加载会话历史
   const storedSessionList = loadSessionListFromStorage()
   const storedCurrentSessionId = loadCurrentSessionIdFromStorage()
-  
+
   if (storedSessionList.length > 0) {
     sessionList.value = storedSessionList
     console.log('从localStorage加载会话列表:', sessionList.value)
   }
-  
+
   if (storedCurrentSessionId) {
     currentSessionId.value = storedCurrentSessionId
     console.log('从localStorage加载当前会话ID:', currentSessionId.value)
   }
-  
+
   initializeSession()
   updateContainerWidth()
   window.addEventListener('resize', updateContainerWidth)
@@ -1069,7 +1074,7 @@ const handleRetryQuestion = async (reason: string = '用户要求重新生成问
     currentNodeId: currentNodeId.value,
     fingerprint: fingerprint.value
   })
-  
+
   // 验证必需参数：sessionId和指纹
   if (!session.value?.sessionId) {
     console.error('重试失败：缺少sessionId', {
@@ -1077,18 +1082,18 @@ const handleRetryQuestion = async (reason: string = '用户要求重新生成问
       isConnected: isConnected.value,
       eventSource: !!eventSource.value
     })
-    
+
     // 尝试重新建立连接
     toast.error({
       title: '连接异常',
       message: '会话连接已断开，正在尝试重新连接...',
       duration: 3000
     })
-    
+
     try {
       // 重新初始化会话
       await initializeSession()
-      
+
       // 等待一段时间让连接建立
       setTimeout(async () => {
         if (session.value?.sessionId) {
@@ -1115,7 +1120,7 @@ const handleRetryQuestion = async (reason: string = '用户要求重新生成问
     }
     return
   }
-  
+
   if (!fingerprint.value) {
     toast.error({
       title: '重试失败',
@@ -1124,7 +1129,7 @@ const handleRetryQuestion = async (reason: string = '用户要求重新生成问
     })
     return
   }
-  
+
   if (!currentQuestion.value) {
     toast.error({
       title: '重试失败',
@@ -1316,18 +1321,18 @@ const handleGeneratePrompt = async (answerData: any) => {
     currentNodeId: currentNodeId.value,
     answerData: answerData
   });
-  
+
   // 检查是否有输入内容
-  const hasInputContent = answerData && 
-    ((typeof answerData === 'string' && answerData.trim().length > 0) || 
+  const hasInputContent = answerData &&
+    ((typeof answerData === 'string' && answerData.trim().length > 0) ||
      (Array.isArray(answerData) && answerData.length > 0) ||
      (typeof answerData === 'object' && Object.keys(answerData).length > 0));
-  
+
   if (!hasInputContent) {
     toast.error('请输入内容后再生成提示词。');
     return;
   }
-  
+
   // 注意：这里不再检查session.value是否存在，因为后端支持在没有sessionId时创建新会话
   // if (!session.value) {
   //   toast.error({
@@ -1346,13 +1351,13 @@ const handleGeneratePrompt = async (answerData: any) => {
     // 注意：这里只是触发生成，真正的提示词内容会通过SSE消息返回
     const genPromptRequest = {
       // sessionId可选，不提供时后端会创建新会话
-      sessionId: session.value?.sessionId || null, 
+      sessionId: session.value?.sessionId || null,
       nodeId: currentNodeId.value,
       answer: answerData
     };
-    
+
     console.log('发送生成提示词请求:', genPromptRequest);
-    
+
     await generatePrompt(genPromptRequest)
 
     // 不在这里设置提示词结果，等待SSE消息中的handleGenPromptMessage处理
@@ -1366,7 +1371,7 @@ const handleGeneratePrompt = async (answerData: any) => {
 
   } catch (error: any) {
     console.error('生成提示词失败:', error)
-    
+
     // 检查是否是会话相关错误
     if (error.message && (error.message.includes('sessionId') || error.message.includes('会话'))) {
       toast.error({

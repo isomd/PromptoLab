@@ -48,7 +48,7 @@ const API_BASE = `${API_CONFIG.BASE_URL}/api/user-interaction`
  */
 export const sendAnswer = async (request: UnifiedAnswerRequest): Promise<string> => {
   const url = `${API_BASE}/message`
-  
+
   try {
     const response = await apiRequest(url, {
       method: 'POST',
@@ -58,11 +58,11 @@ export const sendAnswer = async (request: UnifiedAnswerRequest): Promise<string>
       },
       requireAuth: false
     })
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
-    
+
     return await response.text()
   } catch (error) {
     console.error('发送答案请求失败:', error)
@@ -78,13 +78,13 @@ export const sendAnswer = async (request: UnifiedAnswerRequest): Promise<string>
  */
 export const getSseStatus = async (): Promise<SseStatus> => {
   const url = `${API_BASE}/sse-status`
-  
+
   try {
     const response = await apiJsonRequest<SseStatus>(url, {
       method: 'GET',
       requireAuth: false
     })
-    
+
     return response
   } catch (error) {
     console.error('获取SSE状态失败:', error)
@@ -101,7 +101,7 @@ export const retryRequest = async (request: {
   whyretry: string
 }): Promise<any> => {
   const url = `${API_BASE}/retry`
-  
+
   try {
     const response = await apiJsonRequest<any>(url, {
       method: 'POST',
@@ -111,7 +111,7 @@ export const retryRequest = async (request: {
       },
       requireAuth: false
     })
-    
+
     return response
   } catch (error) {
     console.error('重试请求失败:', error)
@@ -128,9 +128,9 @@ export const generatePrompt = async (request: {
   answer?: any
 }): Promise<string> => {
   const url = `${API_BASE}/gen-prompt`
-  
+
   console.log('准备发送生成提示词请求:', { url, request });
-  
+
   try {
     const response = await apiRequest(url, {
       method: 'POST',
@@ -140,13 +140,13 @@ export const generatePrompt = async (request: {
       },
       requireAuth: false
     })
-    
+
     console.log('收到生成提示词响应:', { status: response.status, ok: response.ok });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
-    
+
     return await response.text()
   } catch (error) {
     console.error('生成提示词请求失败:', error)
@@ -171,19 +171,44 @@ export interface ConversationHistoryResponse {
  */
 export const getConversationHistory = async (sessionId: string): Promise<ApiResult<ConversationHistoryResponse>> => {
   const url = `${API_BASE}/history?sessionId=${encodeURIComponent(sessionId)}`;
-  
+
   try {
     const response = await apiJsonRequest<ApiResult<ConversationHistoryResponse>>(url, {
       method: 'GET',
       requireAuth: false
     });
-    
+
     return response;
   } catch (error) {
     console.error('获取对话历史失败:', error);
     throw error;
   }
 };
+
+/**
+ * 设置用户画像
+ */
+export const setUserProfile = async (request: {
+  sessionId: string
+  userId: string
+  userProfile: string
+}): Promise<boolean> => {
+  try {
+    console.log('发送设置用户画像请求:', request)
+
+    const response = await apiJsonRequest(`${API_BASE}/set-user-profile`, {
+      method: 'POST',
+      body: JSON.stringify(request)
+    })
+
+    console.log('设置用户画像响应:', response)
+    return response === true || response.success === true
+
+  } catch (error) {
+    console.error('设置用户画像请求异常:', error)
+    throw error
+  }
+}
 
 /**
  * 关闭SSE连接
